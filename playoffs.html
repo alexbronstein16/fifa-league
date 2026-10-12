@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playoffs · FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="standings.html">Standings</a>
+    <a href="playoffs.html" class="active">Playoffs</a>
+  </nav>
+
+  <main>
+    <h1>Playoffs</h1>
+    <p class="note" id="status"></p>
+    <div class="bracket" id="bracket">Loading…</div>
+  </main>
+
+  <script type="module">
+    import { getTeams, getMatches } from "./js/db.js";
+    import { computeStandings } from "./js/standings.js";
+    import { buildBracket } from "./js/bracket.js";
+    import { LEAGUE } from "./js/config.js";
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? "").replace(/[&<>"]/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    try {
+      const [teams, matches] = await Promise.all([getTeams(), getMatches()]);
+      const standings = computeStandings(teams, matches, LEAGUE.points);
+      const bracket = buildBracket(standings, matches);
+
+      const team = id => teams.find(t => t.id === id);
+      const seedOf = id => bracket.seeds.indexOf(id) + 1;
+
+      // goals (and pens) for one side of a tie, whichever was home
+      const score = (m, id) => {
+        if (!m) return "";
+        const home = m.home_team_id === id;
+        const g = home ? m.home_goals : m.away_goals;
+        const p = home ? m.home_pens : m.away_pens;
+        return p != null ? `${g} <small>(${p})</small>` : `${g}`;
+      };
+
+      const side = (tie, id) => {
+        const t = team(id);
+        if (!t) return `<div class="side tbd"><span>TBD</span></div>`;
+        const cls = tie.winner == null ? "" : tie.winner === id ? "won" : "lost";
+        return `
+          <div class="side ${cls}">
+            <span>
+              <small class="seed">${seedOf(id)}</small>
+              <span class="dot" style="background:${esc(t.color)}"></span>
+              ${esc(t.name)}
+            </span>
+            <b>${score(tie.match, id)}</b>
+          </div>`;
+      };
+
+      $("bracket").innerHTML = bracket.rounds.map(r => `
+        <div class="round">
+          <h2>${r.name}</h2>
+          ${r.ties.map(tie => `
+            <div class="tie">${side(tie, tie.a)}${side(tie, tie.b)}</div>`).join("")}
+        </div>`).join("");
+
+      const champ = team(bracket.champion);
+      const started = matches.some(m => m.stage === "playoff");
+      $("status").innerHTML = champ
+        ? `🏆 Champion: <b>${esc(champ.name)}</b>`
+        : started ? "Playoffs in progress."
+        : "Projected bracket: seeded by the current standings.";
+    } catch (e) {
+      $("bracket").textContent = `Couldn't load playoffs: ${e.message}`;
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
