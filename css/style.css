@@ -160,3 +160,36 @@ button.secondary { background: var(--line); color: var(--text); font-weight: 400
   border-bottom: 1px solid var(--line);
 }
 .results small { color: var(--muted); margin-left: 6px; }
+
+
+.bracket {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+.round h2 { margin-top: 0; }
+.round { display: grid; gap: 16px; }
+
+.tie {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.side {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.side + .side { border-top: 1px solid var(--line); }
+.side.won { font-weight: 700; box-shadow: inset 3px 0 var(--accent); }
+.side.lost { opacity: 0.5; }
+.side.tbd { color: var(--muted); font-style: italic; }
+.seed { color: var(--muted); margin-right: 6px; }
+
+@media (max-width: 560px) {
+  .bracket { grid-template-columns: 1fr; }
+}
