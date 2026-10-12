@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Standings · FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="standings.html" class="active">Standings</a>
+    <a href="playoffs.html">Playoffs</a>
+  </nav>
+
+  <main>
+    <h1>Standings</h1>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th class="left">Team</th>
+            <th>P</th><th>W</th><th>D</th><th>L</th>
+            <th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+            <th class="hide-sm">Form</th>
+          </tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="11">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note" id="note"></p>
+  </main>
+
+  <script type="module">
+    import { getTeams, getMatches } from "./js/db.js";
+    import { computeStandings } from "./js/standings.js";
+    import { LEAGUE } from "./js/config.js";
+
+    const tbody = document.getElementById("rows");
+    const esc = s => String(s ?? "").replace(/[&<>"]/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    const badge = t => t.crest_url
+      ? `<img class="crest" src="${esc(t.crest_url)}" alt="">`
+      : `<span class="dot" style="background:${esc(t.color)}"></span>`;
+
+    try {
+      const [teams, matches] = await Promise.all([getTeams(), getMatches()]);
+      const table = computeStandings(teams, matches, LEAGUE.points);
+
+      tbody.innerHTML = table.map((r, i) => `
+        <tr class="${i === LEAGUE.playoffSpots - 1 ? "cutoff" : ""}">
+          <td>${i + 1}</td>
+          <td class="left">${badge(r.team)}${esc(r.team.name)}</td>
+          <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
+          <td>${r.gf}</td><td>${r.ga}</td>
+          <td>${r.gd > 0 ? "+" : ""}${r.gd}</td>
+          <td class="pts">${r.pts}</td>
+          <td class="hide-sm">${r.form.map(f =>
+            `<span class="form ${f}">${f}</span>`).join("")}</td>
+        </tr>`).join("");
+
+      const played = matches.filter(m => m.stage === "league").length;
+      document.getElementById("note").textContent =
+        `${played} league matches played. Top ${LEAGUE.playoffSpots} make the playoffs.`;
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="11">Couldn't load standings: ${esc(e.message)}</td></tr>`;
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
