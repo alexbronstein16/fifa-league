@@ -44,7 +44,7 @@
           <label>Goals <input type="number" id="home-goals" min="0" required></label>
         </div>
         <label class="club">Home club <small>optional</small>
-          <input id="home-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Real Madrid">
+          <input id="home-club" maxlength="40" placeholder="Search clubs">
         </label>
 
         <div class="row">
@@ -52,10 +52,8 @@
           <label>Goals <input type="number" id="away-goals" min="0" required></label>
         </div>
         <label class="club">Away club <small>optional</small>
-          <input id="away-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Barcelona">
+          <input id="away-club" maxlength="40" placeholder="Search clubs">
         </label>
-
-        <datalist id="clubs"></datalist>
 
         <div class="row hidden" id="pens-row">
           <label>Home pens <input type="number" id="home-pens" min="0"></label>
@@ -89,10 +87,12 @@
              addMatch, deleteMatch, getPendingSubmissions,
              approveSubmission, rejectSubmission, addPlayer } from "./js/db.js";
     import { ADMIN_ID, CLUB_SUGGESTIONS } from "./js/config.js";
-    import { esc, cleanClub, clubOptions } from "./js/ui.js";
+    import { esc, cleanClub, clubNames } from "./js/ui.js";
+    import { combobox } from "./js/combobox.js";
 
     const $ = id => document.getElementById(id);
     let teams = [];
+    let pickersReady = false;
     const name = id => teams.find(t => t.id === id)?.name ?? "?";
     const day = iso => new Date(iso).toLocaleDateString();
     const club = c => c ? ` <small>(${esc(c)})</small>` : "";
@@ -116,7 +116,12 @@
     async function loadAll() {
       teams = await getAllTeams();
       fillPlayers();
-      $("clubs").innerHTML = clubOptions(await getAllMatches(), CLUB_SUGGESTIONS);
+      if (!pickersReady) {
+        const clubs = clubNames(await getAllMatches(), CLUB_SUGGESTIONS);
+        combobox($("home-club"), clubs);
+        combobox($("away-club"), clubs);
+        pickersReady = true;
+      }
       await Promise.all([loadInbox(), loadRecent()]);
     }
 
