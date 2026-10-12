@@ -43,3 +43,10 @@ export async function deleteMatch(id) {
   const { error } = await supabase.from("matches").delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function getAllMatches() {
+  const { data, error } = await supabase
+    .from("matches").select("*").order("played_at").order("id");
+  if (error) throw error;
+  return data;
+}
