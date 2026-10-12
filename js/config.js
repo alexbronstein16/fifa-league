@@ -6,6 +6,15 @@ export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const REPORT_EMAIL = "alexbro1622@gmail.com";
 export const ADMIN_ID = "99247e39-ccae-4ae0-a3e3-364982c8db5f";
 
+// Starter autocomplete list. Clubs people actually use get added automatically
+// and float to the top, so this only matters for the first few games.
+export const CLUB_SUGGESTIONS = [
+  "Real Madrid", "Barcelona", "Manchester City", "Liverpool", "Arsenal",
+  "Bayern Munich", "Paris Saint-Germain", "Inter", "AC Milan", "Juventus",
+  "Chelsea", "Manchester United", "Tottenham", "Atletico Madrid",
+  "Borussia Dortmund", "Newcastle", "Aston Villa", "Napoli",
+];
+
 export const LEAGUE = {
   name: "FIFA League",
   season: 1,
