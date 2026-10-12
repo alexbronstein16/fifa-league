@@ -193,3 +193,5 @@ button.secondary { background: var(--line); color: var(--text); font-weight: 400
 @media (max-width: 560px) {
   .bracket { grid-template-columns: 1fr; }
 }
+
+.note a { color: var(--muted); }
