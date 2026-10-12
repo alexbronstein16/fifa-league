@@ -16,3 +16,30 @@ export async function getMatches(season = LEAGUE.season) {
   if (error) throw error;
   return data;
 }
+
+// ---------- admin (writes require your login) ----------
+
+export async function getSession() {
+  const { data } = await supabase.auth.getSession();
+  return data.session;
+}
+
+export async function signIn(email, password) {
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+export async function signOut() {
+  await supabase.auth.signOut();
+}
+
+export async function addMatch(match) {
+  const { error } = await supabase
+    .from("matches").insert({ ...match, season: LEAGUE.season });
+  if (error) throw error;
+}
+
+export async function deleteMatch(id) {
+  const { error } = await supabase.from("matches").delete().eq("id", id);
+  if (error) throw error;
+}
