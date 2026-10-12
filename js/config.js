@@ -6,5 +6,4 @@ export const LEAGUE = {
   season: 1,
   points: { win: 3, draw: 1, loss: 0 },
   playoffSpots: 4,
-  elo: { start: 1500, k: 32, kPlayoff: 40 },
-};
+  elo: { start: 1500, k: 32, kPlayoff: 40, kFriendly: 16 },};
