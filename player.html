@@ -35,6 +35,17 @@
       </table>
     </div>
 
+    <h2>Clubs</h2>
+    <p class="note" id="club-note"></p>
+    <div class="table-wrap" id="club-table">
+      <table>
+        <thead>
+          <tr><th class="left">Club</th><th>GP</th><th>W</th><th>D</th><th>L</th><th>Win %</th><th>GF</th><th>GA</th></tr>
+        </thead>
+        <tbody id="clubs"></tbody>
+      </table>
+    </div>
+
     <h2>Match history</h2>
     <ul class="results" id="recent"></ul>
     <div id="older"></div>
@@ -43,7 +54,7 @@
   <script type="module">
     import { getAllTeams, getAllMatches } from "./js/db.js";
     import { computeElo } from "./js/elo.js";
-    import { playerGames, summarize, headToHead } from "./js/player.js";
+    import { playerGames, summarize, headToHead, clubStats } from "./js/player.js";
     import { LEAGUE } from "./js/config.js";
     import { esc, badge, playerLink } from "./js/ui.js";
 
@@ -128,11 +139,18 @@
       const games = allGames.filter(g => stage === "all" || g.stage === stage);
       const s = summarize(games);
       const h2h = headToHead(games);
+      const clubs = clubStats(games);
+      const withClub = games.filter(g => g.club).length;
+      const fave = clubs[0];
+      const best = clubs.filter(c => c.gp >= 3).sort((a, b) => b.w / b.gp - a.w / a.gp)[0];
 
       if (!s.gp) {
         $("tiles").innerHTML = `<p class="note">No games in this category yet.</p>`;
         $("insights").innerHTML = "";
         $("h2h").innerHTML = "";
+        $("clubs").innerHTML = "";
+        $("club-note").textContent = "";
+        $("club-table").hidden = true;
         $("recent").innerHTML = "";
         $("older").innerHTML = "";
         return;
@@ -163,6 +181,8 @@
         ["Longest unbeaten run", `${s.longestUnbeaten} games`],
         fav && ["Favorite opponent", `${playerLink(team(fav.opp))} <small>${fav.w}-${fav.d}-${fav.l}</small>`],
         nem && ["Nemesis", `${playerLink(team(nem.opp))} <small>${nem.w}-${nem.d}-${nem.l}</small>`],
+        fave && ["Favorite club", `${esc(fave.club)} <small>${fave.gp} games</small>`],
+        best && ["Best club", `${esc(best.club)} <small>${pct(best.w / best.gp)} wins</small>`],
         ["Failed to score", `${s.blanks} of ${s.gp} games`],
       ].filter(Boolean);
       $("insights").innerHTML = items.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join("");
@@ -175,6 +195,18 @@
           <td>${r.gf}</td><td>${r.ga}</td>
         </tr>`).join("");
 
+      // clubs
+      $("club-table").hidden = !clubs.length;
+      $("club-note").textContent = clubs.length
+        ? `Club recorded for ${withClub} of ${games.length} games.`
+        : "No clubs recorded yet. Add them when reporting a game.";
+      $("clubs").innerHTML = clubs.map(c => `
+        <tr>
+          <td class="left">${esc(c.club)}</td>
+          <td>${c.gp}</td><td>${c.w}</td><td>${c.d}</td><td>${c.l}</td>
+          <td>${pct(c.w / c.gp)}</td><td>${c.gf}</td><td>${c.ga}</td>
+        </tr>`).join("");
+
       // match history: newest first, last 5 visible, the rest expandable
       const newest = [...games].reverse();
       const row = g => {
@@ -184,7 +216,7 @@
             <span>
               <span class="form ${g.result}">${g.result}</span>
               <b>${g.gf}–${g.ga}</b>${g.pf != null ? ` <small>(${g.pf}–${g.pa} pens)</small>` : ""}
-              vs ${badge(team(g.opp))}${playerLink(team(g.opp))}
+              ${g.club ? `<small>as ${esc(g.club)}</small> ` : ""}vs ${badge(team(g.opp))}${playerLink(team(g.opp))}${g.oppClub ? ` <small>(${esc(g.oppClub)})</small>` : ""}
               <small>${STAGE_LABEL[g.stage]} · ${day(g.date)}</small>
             </span>
             <small class="${change > 0 ? "up" : change < 0 ? "down" : ""}">${signed(change)}</small>
