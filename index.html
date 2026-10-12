@@ -1,1 +1,71 @@
-<h1>FIFA League</h1>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="active">Home</a>
+    <a href="standings.html">Standings</a>
+    <a href="playoffs.html">Playoffs</a>
+  </nav>
+
+  <main>
+    <h1 id="league-name">FIFA League</h1>
+
+    <h2>Teams</h2>
+    <div class="team-grid" id="teams">Loading…</div>
+
+    <h2>Rules</h2>
+    <div class="rules">
+      <h3>Format</h3>
+      <ul>
+        <li>Everyone plays everyone twice, once home and once away.</li>
+        <li>Win = 3 points, draw = 1, loss = 0.</li>
+        <li>Ties in the table are broken by goal difference, then goals scored.</li>
+        <li>The top 4 make the playoffs: 1st vs 4th, 2nd vs 3rd, then a final.</li>
+      </ul>
+
+      <h3>Match settings</h3>
+      <ul>
+        <li>TBD</li>
+      </ul>
+
+      <h3>Reporting</h3>
+      <ul>
+        <li>Tell the commissioner the score right after the game.</li>
+      </ul>
+    </div>
+  </main>
+
+  <script type="module">
+    import { getTeams } from "./js/db.js";
+    import { LEAGUE } from "./js/config.js";
+
+    document.getElementById("league-name").textContent = LEAGUE.name;
+
+    const grid = document.getElementById("teams");
+    const esc = s => String(s ?? "").replace(/[&<>"]/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    try {
+      const teams = await getTeams();
+      grid.innerHTML = teams.map(t => `
+        <div class="team-card" style="border-top-color:${esc(t.color)}">
+          ${t.crest_url
+            ? `<img class="crest-lg" src="${esc(t.crest_url)}" alt="">`
+            : `<div class="crest-lg placeholder" style="background:${esc(t.color)}">${esc(t.short_name || t.name[0])}</div>`}
+          <div class="team-name">${esc(t.name)}</div>
+          ${t.owner_name ? `<div class="team-meta">${esc(t.owner_name)}</div>` : ""}
+          ${t.club ? `<div class="team-meta">${esc(t.club)}</div>` : ""}
+        </div>`).join("");
+    } catch (e) {
+      grid.textContent = `Couldn't load teams: ${e.message}`;
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
