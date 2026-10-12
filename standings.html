@@ -51,7 +51,7 @@
       tbody.innerHTML = table.map((r, i) => `
         <tr class="${i === LEAGUE.playoffSpots - 1 ? "cutoff" : ""}">
           <td>${i + 1}</td>
-          <td class="left">${badge(r.team)}${esc(r.team.name)}</td>
+          <td class="left">${badge(r.team)}${playerLink(r.team)}</td>
           <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
           <td>${r.gf}</td><td>${r.ga}</td>
           <td>${r.gd > 0 ? "+" : ""}${r.gd}</td>
