@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin · FIFA League</title>
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
 </head>
 <body>
   <nav>
     <a href="index.html">Home</a>
     <a href="standings.html">Standings</a>
     <a href="playoffs.html">Playoffs</a>
+    <a href="report.html">Report</a>
   </nav>
 
   <main>
     <h1>Admin</h1>
 
-    <!-- shown when logged out -->
+    <!-- logged out, or logged in as the league account -->
     <form id="login" class="panel hidden">
       <label>Email <input type="email" id="email" required></label>
       <label>Password <input type="password" id="password" required></label>
@@ -25,9 +25,21 @@
       <p class="msg" id="login-msg"></p>
     </form>
 
-    <!-- shown when logged in -->
+    <!-- logged in as you -->
     <section id="admin" class="hidden">
+
+      <h2>Inbox</h2>
+      <ul class="results" id="inbox"></ul>
+
+      <h2>Enter a result</h2>
       <form id="match-form" class="panel">
+        <label>Game type
+          <select id="stage">
+            <option value="league">League</option>
+            <option value="playoff">Playoff</option>
+            <option value="friendly">Friendly</option>
+          </select>
+        </label>
         <div class="row">
           <label>Home <select id="home" required></select></label>
           <label>Goals <input type="number" id="home-goals" min="0" required></label>
@@ -36,18 +48,23 @@
           <label>Away <select id="away" required></select></label>
           <label>Goals <input type="number" id="away-goals" min="0" required></label>
         </div>
-        <label>Stage
-          <select id="stage">
-            <option value="league">League</option>
-            <option value="playoff">Playoff</option>
-          </select>
-        </label>
         <div class="row hidden" id="pens-row">
           <label>Home pens <input type="number" id="home-pens" min="0"></label>
           <label>Away pens <input type="number" id="away-pens" min="0"></label>
         </div>
         <button type="submit">Save result</button>
         <p class="msg" id="match-msg"></p>
+      </form>
+
+      <h2>Add a guest player</h2>
+      <form id="player-form" class="panel">
+        <div class="row">
+          <label>Name <input id="p-name" maxlength="40" required></label>
+          <label>Short <input id="p-short" maxlength="4"></label>
+        </div>
+        <label>Color <input type="color" id="p-color" value="#8a92a6"></label>
+        <button type="submit">Add player</button>
+        <p class="msg" id="player-msg"></p>
       </form>
 
       <h2>Recent results</h2>
@@ -58,23 +75,41 @@
   </main>
 
   <script type="module">
-    import { getSession, signIn, signOut, getTeams, getMatches,
-             addMatch, deleteMatch } from "./js/db.js";
+    import { getSession, signIn, signOut, getAllTeams, getAllMatches,
+             addMatch, deleteMatch, getPendingSubmissions,
+             approveSubmission, rejectSubmission, addPlayer } from "./js/db.js";
+    import { ADMIN_ID } from "./js/config.js";
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? "").replace(/[&<>"]/g,
       c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     let teams = [];
+    const name = id => teams.find(t => t.id === id)?.name ?? "?";
+    const day = iso => new Date(iso).toLocaleDateString();
+    const scoreline = m => `
+      ${esc(name(m.home_team_id))} <b>${m.home_goals}–${m.away_goals}</b>
+      ${esc(name(m.away_team_id))}
+      ${m.home_pens != null ? `(${m.home_pens}–${m.away_pens} pens)` : ""}`;
 
-    // ---- decide which view to show ----
+    // ---------- which view ----------
     async function render() {
       const session = await getSession();
-      $("login").classList.toggle("hidden", !!session);
-      $("admin").classList.toggle("hidden", !session);
-      if (session) await loadAdmin();
+      const isAdmin = session?.user.id === ADMIN_ID;
+      $("login").classList.toggle("hidden", isAdmin);
+      $("admin").classList.toggle("hidden", !isAdmin);
+      if (session && !isAdmin) {
+        $("login-msg").textContent = "You're on the league account. Log in as admin.";
+      }
+      if (isAdmin) await loadAll();
     }
 
-    // ---- login ----
+    async function loadAll() {
+      teams = await getAllTeams();
+      fillPlayers();
+      await Promise.all([loadInbox(), loadRecent()]);
+    }
+
+    // ---------- login / logout ----------
     $("login").addEventListener("submit", async e => {
       e.preventDefault();
       $("login-msg").textContent = "Logging in…";
@@ -92,50 +127,65 @@
       await render();
     });
 
-    // ---- admin view ----
-    async function loadAdmin() {
-      teams = await getTeams();
-      const options = teams.map(t =>
-        `<option value="${t.id}">${esc(t.name)}</option>`).join("");
-      $("home").innerHTML = options;
-      $("away").innerHTML = options;
-      if (teams.length > 1) $("away").selectedIndex = 1;
-      await loadRecent();
-    }
-
-    async function loadRecent() {
-      const name = id => teams.find(t => t.id === id)?.name ?? "?";
-      const matches = (await getMatches()).reverse().slice(0, 15);
-      $("recent").innerHTML = matches.length ? matches.map(m => `
+    // ---------- inbox ----------
+    async function loadInbox() {
+      const subs = await getPendingSubmissions();
+      $("inbox").innerHTML = subs.length ? subs.map(s => `
         <li>
           <span>
-            ${esc(name(m.home_team_id))} <b>${m.home_goals} – ${m.away_goals}</b>
-            ${esc(name(m.away_team_id))}
-            ${m.home_pens != null ? `(${m.home_pens}–${m.away_pens} pens)` : ""}
-            <small>${m.stage}</small>
+            ${scoreline(s)} <small>${s.stage} · ${day(s.played_at)}</small><br>
+            <small>from ${esc(s.submitted_by)}${s.note ? ` · "${esc(s.note)}"` : ""}</small>
           </span>
-          <button class="secondary" data-id="${m.id}">Delete</button>
-        </li>`).join("") : "<li>No results yet.</li>";
+          <span class="actions">
+            <button data-action="approve" data-id="${s.id}">Approve</button>
+            <button class="secondary" data-action="reject" data-id="${s.id}">Reject</button>
+          </span>
+        </li>`).join("") : "<li>Nothing waiting.</li>";
     }
 
-    // show penalty inputs only for playoff games
-    $("stage").addEventListener("change", () =>
-      $("pens-row").classList.toggle("hidden", $("stage").value !== "playoff"));
+    $("inbox").addEventListener("click", async e => {
+      const { action, id } = e.target.dataset;
+      if (!action) return;
+      e.target.disabled = true;
+      try {
+        if (action === "approve") await approveSubmission(Number(id));
+        if (action === "reject") {
+          if (!confirm("Reject this report?")) { e.target.disabled = false; return; }
+          await rejectSubmission(Number(id));
+        }
+        await Promise.all([loadInbox(), loadRecent()]);
+      } catch (err) {
+        alert(err.message);
+        e.target.disabled = false;
+      }
+    });
 
-    // ---- save a result ----
+    // ---------- direct entry ----------
+    function fillPlayers() {
+      const stage = $("stage").value;
+      const list = stage === "friendly" ? teams : teams.filter(t => t.in_league);
+      const options = list.map(t =>
+        `<option value="${t.id}">${esc(t.name)}${t.in_league ? "" : " (guest)"}</option>`).join("");
+      $("home").innerHTML = options;
+      $("away").innerHTML = options;
+      if (list.length > 1) $("away").selectedIndex = 1;
+      $("pens-row").classList.toggle("hidden", stage !== "playoff");
+    }
+    $("stage").addEventListener("change", fillPlayers);
+
     $("match-form").addEventListener("submit", async e => {
       e.preventDefault();
       const msg = $("match-msg");
+      const stage = $("stage").value;
       const home = Number($("home").value);
       const away = Number($("away").value);
       const hg = Number($("home-goals").value);
       const ag = Number($("away-goals").value);
-      const stage = $("stage").value;
 
-      if (home === away) { msg.textContent = "Pick two different teams."; return; }
+      if (home === away) { msg.textContent = "Pick two different players."; return; }
 
-      const match = { home_team_id: home, away_team_id: away,
-                      home_goals: hg, away_goals: ag, stage };
+      const match = { stage, home_team_id: home, away_team_id: away,
+                      home_goals: hg, away_goals: ag };
 
       if (stage === "playoff" && hg === ag) {
         const hp = $("home-pens").value, ap = $("away-pens").value;
@@ -151,17 +201,48 @@
       try {
         await addMatch(match);
         msg.textContent = "Saved ✓";
-        $("home-goals").value = "";
-        $("away-goals").value = "";
-        $("home-pens").value = "";
-        $("away-pens").value = "";
+        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens"]) $(id).value = "";
         await loadRecent();
       } catch (err) {
         msg.textContent = `Error: ${err.message}`;
       }
     });
 
-    // ---- delete (one listener for all buttons) ----
+    // ---------- guest players ----------
+    $("player-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const msg = $("player-msg");
+      const playerName = $("p-name").value.trim();
+      if (!playerName) return;
+      msg.textContent = "Adding…";
+      try {
+        await addPlayer({
+          name: playerName,
+          short_name: $("p-short").value.trim().toUpperCase() || null,
+          color: $("p-color").value,
+        });
+        msg.textContent = `Added ${playerName} ✓`;
+        $("p-name").value = "";
+        $("p-short").value = "";
+        teams = await getAllTeams();
+        fillPlayers();
+      } catch (err) {
+        msg.textContent = err.message.includes("duplicate")
+          ? "A player with that name already exists."
+          : `Error: ${err.message}`;
+      }
+    });
+
+    // ---------- recent results ----------
+    async function loadRecent() {
+      const matches = (await getAllMatches()).reverse().slice(0, 15);
+      $("recent").innerHTML = matches.length ? matches.map(m => `
+        <li>
+          <span>${scoreline(m)} <small>${m.stage} · ${day(m.played_at)}</small></span>
+          <button class="secondary" data-id="${m.id}">Delete</button>
+        </li>`).join("") : "<li>No results yet.</li>";
+    }
+
     $("recent").addEventListener("click", async e => {
       const id = e.target.dataset.id;
       if (!id || !confirm("Delete this result?")) return;
