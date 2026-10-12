@@ -11,6 +11,8 @@ function fromPerspective(m, id) {
     gf, ga,
     pf: home ? m.home_pens : m.away_pens,
     pa: home ? m.away_pens : m.home_pens,
+    club: home ? m.home_club : m.away_club,
+    oppClub: home ? m.away_club : m.home_club,
     result: gf > ga ? "W" : gf < ga ? "L" : "D",
   };
 }
@@ -85,4 +87,21 @@ export function headToHead(games) {
     byOpp.set(g.opp, r);
   }
   return [...byOpp.values()].sort((a, b) => b.gp - a.gp || (b.w - b.l) - (a.w - a.l));
+}
+
+// Record by club, for games where this player's club was recorded.
+export function clubStats(games) {
+  const byClub = new Map();
+  for (const g of games) {
+    const name = (g.club ?? "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const r = byClub.get(key) ?? { club: name, gp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0 };
+    r.gp++;
+    r.gf += g.gf;
+    r.ga += g.ga;
+    r[g.result.toLowerCase()]++;
+    byClub.set(key, r);
+  }
+  return [...byClub.values()].sort((a, b) => b.gp - a.gp || b.w - a.w);
 }
