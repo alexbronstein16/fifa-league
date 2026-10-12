@@ -53,14 +53,14 @@
     try {
       const teams = await getTeams();
       grid.innerHTML = teams.map(t => `
-        <div class="team-card" href="player.html?id=${t.id}" style="border-top-color:${esc(t.color)}">
+        <a class="team-card" href="player.html?id=${t.id}" style="border-top-color:${esc(t.color)}">
           ${t.crest_url
             ? `<img class="crest-lg" src="${esc(t.crest_url)}" alt="">`
             : `<div class="crest-lg placeholder" style="background:${esc(t.color)}">${esc(t.short_name || t.name[0])}</div>`}
           <div class="team-name">${esc(t.name)}</div>
           ${t.owner_name ? `<div class="team-meta">${esc(t.owner_name)}</div>` : ""}
           ${t.club ? `<div class="team-meta">${esc(t.club)}</div>` : ""}
-        </div>`).join("");
+        </a>`).join("");
     } catch (e) {
       grid.textContent = `Couldn't load teams: ${e.message}`;
       console.error(e);
