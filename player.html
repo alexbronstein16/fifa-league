@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player · FIFA League</title>
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="apple-touch-icon" href="img/logo.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav id="nav"></nav>
+  <script src="js/nav.js"></script>
+
+  <main>
+    <div id="header">Loading…</div>
+
+    <div class="filters" id="filters"></div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <h2>Insights</h2>
+    <ul class="insights" id="insights"></ul>
+
+    <h2>Elo over time <small class="note">all games</small></h2>
+    <div id="elo"></div>
+
+    <h2>Head to head</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th class="left">Opponent</th><th>GP</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></tr>
+        </thead>
+        <tbody id="h2h"></tbody>
+      </table>
+    </div>
+
+    <h2>Match history</h2>
+    <ul class="results" id="recent"></ul>
+    <div id="older"></div>
+  </main>
+
+  <script type="module">
+    import { getAllTeams, getAllMatches } from "./js/db.js";
+    import { computeElo } from "./js/elo.js";
+    import { playerGames, summarize, headToHead } from "./js/player.js";
+    import { LEAGUE } from "./js/config.js";
+    import { esc, badge, playerLink } from "./js/ui.js";
+
+    const $ = id => document.getElementById(id);
+    const signed = n => (n > 0 ? "+" : "") + n;
+    const pct = n => `${Math.round(n * 100)}%`;
+    const one = n => n.toFixed(1);
+    const day = iso => new Date(iso).toLocaleDateString();
+    const STAGES = [["all", "All"], ["league", "League"], ["playoff", "Playoffs"], ["friendly", "Friendlies"]];
+    const STAGE_LABEL = { league: "League", playoff: "Playoff", friendly: "Friendly" };
+
+    const playerId = Number(new URLSearchParams(location.search).get("id"));
+    let teams = [], allGames = [], stage = "all";
+    const team = id => teams.find(t => t.id === id);
+
+    async function main() {
+      const matches = await getAllMatches();
+      teams = await getAllTeams();
+      const me = team(playerId);
+      if (!me) {
+        $("header").innerHTML = `<h1>Player not found</h1>`;
+        return;
+      }
+      document.title = `${me.name} · FIFA League`;
+
+      const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
+      allGames = playerGames(playerId, matches, history);
+
+      drawHeader(me, ratings, matches);
+      drawFilters();
+      drawElo(allGames);
+      render();
+    }
+
+    // ---------- header ----------
+    function drawHeader(me, ratings, matches) {
+      const played = new Set(matches.flatMap(m => [m.home_team_id, m.away_team_id]));
+      const ranked = teams.filter(t => played.has(t.id))
+                          .sort((a, b) => ratings.get(b.id) - ratings.get(a.id));
+      const rank = ranked.findIndex(t => t.id === me.id) + 1;
+      const elo = Math.round(ratings.get(me.id) ?? LEAGUE.elo.start);
+      const peak = Math.round(Math.max(LEAGUE.elo.start, ...allGames.map(g => g.elo)));
+
+      const crest = me.crest_url
+        ? `<img class="crest-lg" src="${esc(me.crest_url)}" alt="">`
+        : `<div class="crest-lg placeholder" style="background:${esc(me.color)}">${esc(me.short_name || me.name[0])}</div>`;
+      const details = [me.owner_name, me.club, me.in_league ? "League" : "Guest"]
+        .filter(Boolean).map(esc).join(" · ");
+
+      $("header").innerHTML = `
+        <div class="profile" style="border-top-color:${esc(me.color)}">
+          ${crest}
+          <div class="profile-name">
+            <h1>${esc(me.name)}</h1>
+            <p class="note">${details}</p>
+          </div>
+          <div class="profile-elo">
+            <div class="big">${elo}</div>
+            <small>Elo${rank ? ` · #${rank} of ${ranked.length}` : ""} · peak ${peak}</small>
+          </div>
+        </div>`;
+    }
+
+    // ---------- filter chips ----------
+    function drawFilters() {
+      $("filters").innerHTML = STAGES.map(([key, label]) => {
+        const n = key === "all" ? allGames.length : allGames.filter(g => g.stage === key).length;
+        return `<button class="chip" data-stage="${key}" aria-pressed="${key === stage}">${label} <small>${n}</small></button>`;
+      }).join("");
+    }
+
+    $("filters").addEventListener("click", e => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      stage = btn.dataset.stage;
+      drawFilters();
+      render();
+    });
+
+    // ---------- everything that depends on the filter ----------
+    function render() {
+      const games = allGames.filter(g => stage === "all" || g.stage === stage);
+      const s = summarize(games);
+      const h2h = headToHead(games);
+
+      if (!s.gp) {
+        $("tiles").innerHTML = `<p class="note">No games in this category yet.</p>`;
+        $("insights").innerHTML = "";
+        $("h2h").innerHTML = "";
+        $("recent").innerHTML = "";
+        $("older").innerHTML = "";
+        return;
+      }
+
+      // stat tiles
+      const tile = (label, big, sub = "") =>
+        `<div class="tile"><small>${label}</small><div class="big">${big}</div>${sub ? `<small>${sub}</small>` : ""}</div>`;
+      $("tiles").innerHTML = [
+        tile("Record", `${s.w}-${s.d}-${s.l}`, `${s.gp} games`),
+        tile("Win %", pct(s.winPct)),
+        tile("Goals for", s.gf, `${one(s.avgFor)} per game`),
+        tile("Goals against", s.ga, `${one(s.avgAgainst)} per game`),
+        tile("Goal diff", signed(s.gd)),
+        tile("Clean sheets", s.cleanSheets, pct(s.cleanSheets / s.gp)),
+        tile("Streak", s.streak),
+        tile("Form", s.form.map(f => `<span class="form ${f}">${f}</span>`).join("")),
+      ].join("");
+
+      // insights
+      const vs = g => `${g.gf}–${g.ga} vs ${playerLink(team(g.opp))} <small>${day(g.date)}</small>`;
+      const fav = [...h2h].filter(r => r.w > 0).sort((a, b) => b.w - a.w)[0];
+      const nem = [...h2h].filter(r => r.l > 0).sort((a, b) => b.l - a.l)[0];
+      const items = [
+        s.biggestWin && ["Biggest win", vs(s.biggestWin)],
+        s.worstLoss && ["Worst loss", vs(s.worstLoss)],
+        ["Longest win streak", `${s.longestWin} games`],
+        ["Longest unbeaten run", `${s.longestUnbeaten} games`],
+        fav && ["Favorite opponent", `${playerLink(team(fav.opp))} <small>${fav.w}-${fav.d}-${fav.l}</small>`],
+        nem && ["Nemesis", `${playerLink(team(nem.opp))} <small>${nem.w}-${nem.d}-${nem.l}</small>`],
+        ["Failed to score", `${s.blanks} of ${s.gp} games`],
+      ].filter(Boolean);
+      $("insights").innerHTML = items.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join("");
+
+      // head to head
+      $("h2h").innerHTML = h2h.map(r => `
+        <tr>
+          <td class="left">${badge(team(r.opp))}${playerLink(team(r.opp))}</td>
+          <td>${r.gp}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
+          <td>${r.gf}</td><td>${r.ga}</td>
+        </tr>`).join("");
+
+      // match history: newest first, last 5 visible, the rest expandable
+      const newest = [...games].reverse();
+      const row = g => {
+        const change = Math.round(g.eloChange);
+        return `
+          <li>
+            <span>
+              <span class="form ${g.result}">${g.result}</span>
+              <b>${g.gf}–${g.ga}</b>${g.pf != null ? ` <small>(${g.pf}–${g.pa} pens)</small>` : ""}
+              vs ${badge(team(g.opp))}${playerLink(team(g.opp))}
+              <small>${STAGE_LABEL[g.stage]} · ${day(g.date)}</small>
+            </span>
+            <small class="${change > 0 ? "up" : change < 0 ? "down" : ""}">${signed(change)}</small>
+          </li>`;
+      };
+      $("recent").innerHTML = newest.slice(0, 5).map(row).join("");
+      const older = newest.slice(5);
+      $("older").innerHTML = older.length ? `
+        <details>
+          <summary>Show ${older.length} older ${older.length === 1 ? "match" : "matches"}</summary>
+          <ul class="results">${older.map(row).join("")}</ul>
+        </details>` : "";
+    }
+
+    // ---------- Elo chart (all games, not filtered) ----------
+    function drawElo(games) {
+      const box = $("elo");
+      if (games.length < 2) {
+        box.innerHTML = `<p class="note">The chart appears after two games.</p>`;
+        return;
+      }
+      const start = LEAGUE.elo.start;
+      const pts = [{ elo: start }, ...games];
+      const W = 600, H = 180, L = 44, R = 10, T = 12, B = 12;
+      const vals = pts.map(p => p.elo);
+      const max = Math.max(...vals), min = Math.min(...vals);
+      const pad = Math.max(10, (max - min) * 0.15);
+      const hi = max + pad, lo = min - pad;
+      const step = (W - L - R) / (pts.length - 1);
+      const x = i => L + i * step;
+      const y = v => T + (hi - v) * (H - T - B) / (hi - lo);
+      const label = v => `<text class="axis" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`;
+      const farFromStart = v => Math.abs(y(v) - y(start)) > 14;
+
+      box.innerHTML = `
+        <div class="chart-wrap">
+          <svg viewBox="0 0 ${W} ${H}" class="elo-chart" role="img" aria-label="Elo rating after each game">
+            <line class="ref" x1="${L}" x2="${W - R}" y1="${y(start)}" y2="${y(start)}"/>
+            ${label(start)}
+            ${farFromStart(max) ? label(max) : ""}
+            ${farFromStart(min) ? label(min) : ""}
+            <polyline class="line" points="${pts.map((p, i) => `${x(i)},${y(p.elo)}`).join(" ")}"/>
+            <circle class="hover-dot" r="5" visibility="hidden"/>
+          </svg>
+          <div class="tip" hidden></div>
+        </div>`;
+
+      const svg = box.querySelector("svg");
+      const dot = box.querySelector(".hover-dot");
+      const tip = box.querySelector(".tip");
+
+      svg.addEventListener("pointermove", e => {
+        const r = svg.getBoundingClientRect();
+        const vx = (e.clientX - r.left) * W / r.width;
+        const i = Math.min(pts.length - 1, Math.max(0, Math.round((vx - L) / step)));
+        const p = pts[i];
+        dot.setAttribute("cx", x(i));
+        dot.setAttribute("cy", y(p.elo));
+        dot.setAttribute("visibility", "visible");
+        tip.innerHTML = i === 0
+          ? `Start · <b>${start}</b>`
+          : `${p.result} ${p.gf}–${p.ga} vs ${esc(team(p.opp)?.name ?? "?")}<br>
+             <b>${Math.round(p.elo)}</b> (${signed(Math.round(p.eloChange))}) · ${day(p.date)}`;
+        tip.hidden = false;
+        const px = x(i) / W * r.width;
+        tip.style.left = `${Math.min(Math.max(px, 80), r.width - 80)}px`;
+      });
+      svg.addEventListener("pointerleave", () => {
+        dot.setAttribute("visibility", "hidden");
+        tip.hidden = true;
+      });
+    }
+
+    main().catch(e => {
+      $("header").innerHTML = `<p>Couldn't load player: ${esc(e.message)}</p>`;
+      console.error(e);
+    });
+  </script>
+</body>
+</html>
