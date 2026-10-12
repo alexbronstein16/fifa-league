@@ -24,7 +24,7 @@ export function computeElo(teams, matches, cfg) {
     const result = m.home_goals > m.away_goals ? 1
                  : m.home_goals < m.away_goals ? 0 : 0.5;
 
-    const k = m.stage === "playoff" ? cfg.kPlayoff : cfg.k;
+    const k = { league: cfg.k, playoff: cfg.kPlayoff, friendly: cfg.kFriendly }[m.stage] ?? cfg.k;
     const g = marginMultiplier(Math.abs(m.home_goals - m.away_goals));
     const delta = k * g * (result - expected(rh, ra));
 
