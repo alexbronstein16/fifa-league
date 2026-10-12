@@ -48,7 +48,7 @@
 
       const side = (tie, id) => {
         const t = team(id);
-        if (!t) return `<div class="side tbd"><span>TBD</span></div>`;
+        if (!t) return `<div class="side tbd"><span>${tie.bye ? "Bye" : "TBD"}</span></div>`;
         const cls = tie.winner == null ? "" : tie.winner === id ? "won" : "lost";
         return `
           <div class="side ${cls}">
