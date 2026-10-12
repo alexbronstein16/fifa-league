@@ -79,7 +79,7 @@
           <tr>
             <td>${i + 1}</td>
             <td class="left">
-              <span class="dot" style="background:${esc(r.team.color)}"></span>
+              ${badge(r.team)}
               ${playerLink(r.team)}
               ${r.team.in_league ? "" : `<small class="tag">guest</small>`}
             </td>
