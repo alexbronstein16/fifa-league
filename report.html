@@ -35,14 +35,23 @@
           </select>
         </label>
 
-        <div class="row">
-          <label>Home <select id="home" required></select></label>
-          <label>Goals <input type="number" id="home-goals" min="0" required></label>
-        </div>
-        <div class="row">
-          <label>Away <select id="away" required></select></label>
-          <label>Goals <input type="number" id="away-goals" min="0" required></label>
-        </div>
+       <div class="row">
+         <label>Home <select id="home" required></select></label>
+         <label>Goals <input type="number" id="home-goals" min="0" required></label>
+      </div>
+      <label class="club">Home club <small>optional</small>
+        <input id="home-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Real Madrid">
+      </label>
+        
+      <div class="row">
+        <label>Away <select id="away" required></select></label>
+        <label>Goals <input type="number" id="away-goals" min="0" required></label>
+      </div>
+      <label class="club">Away club <small>optional</small>
+        <input id="away-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Barcelona">
+      </label>
+
+      <datalist id="clubs"></datalist>
 
         <div class="row hidden" id="pens-row">
           <label>Home pens <input type="number" id="home-pens" min="0"></label>
