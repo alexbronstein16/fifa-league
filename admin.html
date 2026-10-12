@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin · FIFA League</title>
-  <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="apple-touch-icon" href="img/logo.png">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <nav id="nav"></nav>
@@ -38,18 +38,30 @@
             <option value="friendly">Friendly</option>
           </select>
         </label>
+
         <div class="row">
           <label>Home <select id="home" required></select></label>
           <label>Goals <input type="number" id="home-goals" min="0" required></label>
         </div>
+        <label class="club">Home club <small>optional</small>
+          <input id="home-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Real Madrid">
+        </label>
+
         <div class="row">
           <label>Away <select id="away" required></select></label>
           <label>Goals <input type="number" id="away-goals" min="0" required></label>
         </div>
+        <label class="club">Away club <small>optional</small>
+          <input id="away-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Barcelona">
+        </label>
+
+        <datalist id="clubs"></datalist>
+
         <div class="row hidden" id="pens-row">
           <label>Home pens <input type="number" id="home-pens" min="0"></label>
           <label>Away pens <input type="number" id="away-pens" min="0"></label>
         </div>
+
         <button type="submit">Save result</button>
         <p class="msg" id="match-msg"></p>
       </form>
@@ -76,17 +88,17 @@
     import { getSession, signIn, signOut, getAllTeams, getAllMatches,
              addMatch, deleteMatch, getPendingSubmissions,
              approveSubmission, rejectSubmission, addPlayer } from "./js/db.js";
-    import { ADMIN_ID } from "./js/config.js";
+    import { ADMIN_ID, CLUB_SUGGESTIONS } from "./js/config.js";
+    import { esc, cleanClub, clubOptions } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
-    const esc = s => String(s ?? "").replace(/[&<>"]/g,
-      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     let teams = [];
     const name = id => teams.find(t => t.id === id)?.name ?? "?";
     const day = iso => new Date(iso).toLocaleDateString();
+    const club = c => c ? ` <small>(${esc(c)})</small>` : "";
     const scoreline = m => `
-      ${esc(name(m.home_team_id))} <b>${m.home_goals}–${m.away_goals}</b>
-      ${esc(name(m.away_team_id))}
+      ${esc(name(m.home_team_id))}${club(m.home_club)} <b>${m.home_goals}–${m.away_goals}</b>
+      ${esc(name(m.away_team_id))}${club(m.away_club)}
       ${m.home_pens != null ? `(${m.home_pens}–${m.away_pens} pens)` : ""}`;
 
     // ---------- which view ----------
@@ -104,6 +116,7 @@
     async function loadAll() {
       teams = await getAllTeams();
       fillPlayers();
+      $("clubs").innerHTML = clubOptions(await getAllMatches(), CLUB_SUGGESTIONS);
       await Promise.all([loadInbox(), loadRecent()]);
     }
 
@@ -182,8 +195,12 @@
 
       if (home === away) { msg.textContent = "Pick two different players."; return; }
 
-      const match = { stage, home_team_id: home, away_team_id: away,
-                      home_goals: hg, away_goals: ag };
+      const match = {
+        stage, home_team_id: home, away_team_id: away,
+        home_goals: hg, away_goals: ag,
+        home_club: cleanClub($("home-club").value),
+        away_club: cleanClub($("away-club").value),
+      };
 
       if (stage === "playoff" && hg === ag) {
         const hp = $("home-pens").value, ap = $("away-pens").value;
@@ -199,7 +216,9 @@
       try {
         await addMatch(match);
         msg.textContent = "Saved ✓";
-        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens"]) $(id).value = "";
+        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "home-club", "away-club"]) {
+          $(id).value = "";
+        }
         await loadRecent();
       } catch (err) {
         msg.textContent = `Error: ${err.message}`;
