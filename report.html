@@ -151,6 +151,8 @@
         stage, submitted_by: name,
         home_team_id: home, away_team_id: away,
         home_goals: hg, away_goals: ag,
+        home_club: cleanClub($("home-club").value),
+        away_club: cleanClub($("away-club").value),
         note: $("note").value.trim() || null,
       };
 
