@@ -163,6 +163,35 @@ input, select {
 }
 input[type="color"] { padding: 2px; height: 40px; }
 
+/* club search picker */
+.combo { position: relative; }
+.combo-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.combo-list[hidden] { display: none; }
+.combo-list li {
+  padding: 9px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+}
+.combo-list li.active, .combo-list li:hover { background: var(--line); }
+.combo-list li.add { color: var(--accent); }
+
 button {
   font: inherit;
   font-weight: 600;
