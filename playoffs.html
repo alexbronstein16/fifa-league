@@ -23,6 +23,7 @@
     import { computeStandings } from "./js/standings.js";
     import { buildBracket } from "./js/bracket.js";
     import { LEAGUE } from "./js/config.js";
+    import { badge } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? "").replace(/[&<>"]/g,
@@ -53,7 +54,7 @@
           <div class="side ${cls}">
             <span>
               <small class="seed">${seedOf(id)}</small>
-              <span class="dot" style="background:${esc(t.color)}"></span>
+              ${badge(t)}
               ${esc(t.name)}
             </span>
             <b>${score(tie.match, id)}</b>
