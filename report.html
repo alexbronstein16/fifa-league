@@ -94,6 +94,8 @@
       $("report").classList.toggle("hidden", !session);
       if (session) {
         teams = await getAllTeams();
+        const matches = await getAllMatches();
+        $("clubs").innerHTML = clubOptions(matches, CLUB_SUGGESTIONS);
         fillPlayers();
         $("date").value = today();
       }
