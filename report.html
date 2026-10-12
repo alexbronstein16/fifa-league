@@ -177,7 +177,7 @@
         await submitScore(sub);
         try { localStorage.setItem("reporter", name); } catch {}
         msg.textContent = "Sent ✓ The commissioner will approve it shortly.";
-        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "note"]) {
+        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "note", "home-club", "away-club"]) {
           $(id).value = "";
         }
       } catch (err) {
