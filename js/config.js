@@ -3,7 +3,7 @@ export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 
 // The shared league account
-export const REPORT_EMAIL = "alexbronstein16+league@gmail.com";
+export const REPORT_EMAIL = "alexbro1622@gmail.com";
 export const LEAGUE = {
   name: "FIFA League",
   season: 1,
