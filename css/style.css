@@ -199,3 +199,14 @@ button.secondary { background: var(--line); color: var(--text); font-weight: 400
 .actions { display: flex; gap: 6px; flex-shrink: 0; }
 input[type="color"] { padding: 2px; height: 40px; }
 button:disabled { opacity: 0.5; cursor: default; }
+
+.up { color: var(--win); }
+.down { color: var(--loss); }
+.tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 11px;
+}
