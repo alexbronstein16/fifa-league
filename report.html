@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Report a Score · FIFA League</title>
-  <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="apple-touch-icon" href="img/logo.png">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <nav id="nav"></nav>
@@ -35,23 +35,21 @@
           </select>
         </label>
 
-       <div class="row">
-         <label>Home <select id="home" required></select></label>
-         <label>Goals <input type="number" id="home-goals" min="0" required></label>
-      </div>
-      <label class="club">Home club <small>optional</small>
-        <input id="home-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Real Madrid">
-      </label>
-        
-      <div class="row">
-        <label>Away <select id="away" required></select></label>
-        <label>Goals <input type="number" id="away-goals" min="0" required></label>
-      </div>
-      <label class="club">Away club <small>optional</small>
-        <input id="away-club" list="clubs" maxlength="40" autocomplete="off" placeholder="e.g. Barcelona">
-      </label>
+        <div class="row">
+          <label>Home <select id="home" required></select></label>
+          <label>Goals <input type="number" id="home-goals" min="0" required></label>
+        </div>
+        <label class="club">Home club <small>optional</small>
+          <input id="home-club" maxlength="40" placeholder="Search clubs">
+        </label>
 
-      <datalist id="clubs"></datalist>
+        <div class="row">
+          <label>Away <select id="away" required></select></label>
+          <label>Goals <input type="number" id="away-goals" min="0" required></label>
+        </div>
+        <label class="club">Away club <small>optional</small>
+          <input id="away-club" maxlength="40" placeholder="Search clubs">
+        </label>
 
         <div class="row hidden" id="pens-row">
           <label>Home pens <input type="number" id="home-pens" min="0"></label>
@@ -75,13 +73,13 @@
   <script type="module">
     import { getSession, signIn, signOut, getAllTeams, getAllMatches, submitScore } from "./js/db.js";
     import { REPORT_EMAIL, CLUB_SUGGESTIONS } from "./js/config.js";
-    import { cleanClub, clubOptions } from "./js/ui.js";
+    import { esc, cleanClub, clubNames } from "./js/ui.js";
+    import { combobox } from "./js/combobox.js";
 
     const $ = id => document.getElementById(id);
-    const esc = s => String(s ?? "").replace(/[&<>"]/g,
-      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
     const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
     let teams = [];
+    let pickersReady = false;
 
     // ---- remember name (wrapped: storage can be blocked in private mode) ----
     const saved = (() => { try { return localStorage.getItem("reporter") ?? ""; } catch { return ""; } })();
@@ -94,10 +92,14 @@
       $("report").classList.toggle("hidden", !session);
       if (session) {
         teams = await getAllTeams();
-        const matches = await getAllMatches();
-        $("clubs").innerHTML = clubOptions(matches, CLUB_SUGGESTIONS);
         fillPlayers();
         $("date").value = today();
+        if (!pickersReady) {
+          const clubs = clubNames(await getAllMatches(), CLUB_SUGGESTIONS);
+          combobox($("home-club"), clubs);
+          combobox($("away-club"), clubs);
+          pickersReady = true;
+        }
       }
     }
 
@@ -182,8 +184,7 @@
         }
       } catch (err) {
         msg.textContent = `Couldn't send: ${err.message}`;
-
-            }
+      }
     });
 
     render();
