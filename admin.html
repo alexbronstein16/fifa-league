@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin · FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="standings.html">Standings</a>
+    <a href="playoffs.html">Playoffs</a>
+  </nav>
+
+  <main>
+    <h1>Admin</h1>
+
+    <!-- shown when logged out -->
+    <form id="login" class="panel hidden">
+      <label>Email <input type="email" id="email" required></label>
+      <label>Password <input type="password" id="password" required></label>
+      <button type="submit">Log in</button>
+      <p class="msg" id="login-msg"></p>
+    </form>
+
+    <!-- shown when logged in -->
+    <section id="admin" class="hidden">
+      <form id="match-form" class="panel">
+        <div class="row">
+          <label>Home <select id="home" required></select></label>
+          <label>Goals <input type="number" id="home-goals" min="0" required></label>
+        </div>
+        <div class="row">
+          <label>Away <select id="away" required></select></label>
+          <label>Goals <input type="number" id="away-goals" min="0" required></label>
+        </div>
+        <label>Stage
+          <select id="stage">
+            <option value="league">League</option>
+            <option value="playoff">Playoff</option>
+          </select>
+        </label>
+        <div class="row hidden" id="pens-row">
+          <label>Home pens <input type="number" id="home-pens" min="0"></label>
+          <label>Away pens <input type="number" id="away-pens" min="0"></label>
+        </div>
+        <button type="submit">Save result</button>
+        <p class="msg" id="match-msg"></p>
+      </form>
+
+      <h2>Recent results</h2>
+      <ul class="results" id="recent"></ul>
+
+      <button class="secondary" id="logout">Log out</button>
+    </section>
+  </main>
+
+  <script type="module">
+    import { getSession, signIn, signOut, getTeams, getMatches,
+             addMatch, deleteMatch } from "./js/db.js";
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? "").replace(/[&<>"]/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    let teams = [];
+
+    // ---- decide which view to show ----
+    async function render() {
+      const session = await getSession();
+      $("login").classList.toggle("hidden", !!session);
+      $("admin").classList.toggle("hidden", !session);
+      if (session) await loadAdmin();
+    }
+
+    // ---- login ----
+    $("login").addEventListener("submit", async e => {
+      e.preventDefault();
+      $("login-msg").textContent = "Logging in…";
+      try {
+        await signIn($("email").value, $("password").value);
+        $("login-msg").textContent = "";
+        await render();
+      } catch (err) {
+        $("login-msg").textContent = err.message;
+      }
+    });
+
+    $("logout").addEventListener("click", async () => {
+      await signOut();
+      await render();
+    });
+
+    // ---- admin view ----
+    async function loadAdmin() {
+      teams = await getTeams();
+      const options = teams.map(t =>
+        `<option value="${t.id}">${esc(t.name)}</option>`).join("");
+      $("home").innerHTML = options;
+      $("away").innerHTML = options;
+      if (teams.length > 1) $("away").selectedIndex = 1;
+      await loadRecent();
+    }
+
+    async function loadRecent() {
+      const name = id => teams.find(t => t.id === id)?.name ?? "?";
+      const matches = (await getMatches()).reverse().slice(0, 15);
+      $("recent").innerHTML = matches.length ? matches.map(m => `
+        <li>
+          <span>
+            ${esc(name(m.home_team_id))} <b>${m.home_goals} – ${m.away_goals}</b>
+            ${esc(name(m.away_team_id))}
+            ${m.home_pens != null ? `(${m.home_pens}–${m.away_pens} pens)` : ""}
+            <small>${m.stage}</small>
+          </span>
+          <button class="secondary" data-id="${m.id}">Delete</button>
+        </li>`).join("") : "<li>No results yet.</li>";
+    }
+
+    // show penalty inputs only for playoff games
+    $("stage").addEventListener("change", () =>
+      $("pens-row").classList.toggle("hidden", $("stage").value !== "playoff"));
+
+    // ---- save a result ----
+    $("match-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const msg = $("match-msg");
+      const home = Number($("home").value);
+      const away = Number($("away").value);
+      const hg = Number($("home-goals").value);
+      const ag = Number($("away-goals").value);
+      const stage = $("stage").value;
+
+      if (home === away) { msg.textContent = "Pick two different teams."; return; }
+
+      const match = { home_team_id: home, away_team_id: away,
+                      home_goals: hg, away_goals: ag, stage };
+
+      if (stage === "playoff" && hg === ag) {
+        const hp = $("home-pens").value, ap = $("away-pens").value;
+        if (hp === "" || ap === "" || hp === ap) {
+          msg.textContent = "Playoff draws need a penalty winner.";
+          return;
+        }
+        match.home_pens = Number(hp);
+        match.away_pens = Number(ap);
+      }
+
+      msg.textContent = "Saving…";
+      try {
+        await addMatch(match);
+        msg.textContent = "Saved ✓";
+        $("home-goals").value = "";
+        $("away-goals").value = "";
+        $("home-pens").value = "";
+        $("away-pens").value = "";
+        await loadRecent();
+      } catch (err) {
+        msg.textContent = `Error: ${err.message}`;
+      }
+    });
+
+    // ---- delete (one listener for all buttons) ----
+    $("recent").addEventListener("click", async e => {
+      const id = e.target.dataset.id;
+      if (!id || !confirm("Delete this result?")) return;
+      try {
+        await deleteMatch(Number(id));
+        await loadRecent();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
