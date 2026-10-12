@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Friendlies · FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav id="nav"></nav>
+  <script src="js/nav.js"></script>
+
+  <main>
+    <h1>Friendlies &amp; Elo</h1>
+
+    <h2>Elo rankings</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th class="left">Player</th>
+            <th>Elo</th><th>Last</th>
+            <th>GP</th><th>W</th><th>D</th><th>L</th>
+          </tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="8">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note">All players and all games count: league, playoffs, and friendlies (at half weight).
+      Players appear after their first game.</p>
+
+    <h2>Recent friendlies</h2>
+    <ul class="results" id="recent"></ul>
+  </main>
+
+  <script type="module">
+    import { getAllTeams, getAllMatches } from "./js/db.js";
+    import { computeElo } from "./js/elo.js";
+    import { LEAGUE } from "./js/config.js";
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? "").replace(/[&<>"]/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const signed = n => (n > 0 ? "+" : "") + n;
+
+    try {
+      const [teams, matches] = await Promise.all([getAllTeams(), getAllMatches()]);
+      const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
+
+      // ---- per-player record and last Elo change ----
+      const stats = new Map(teams.map(t => [t.id, { gp: 0, w: 0, d: 0, l: 0, last: 0 }]));
+      const swing = new Map(); // match id -> rating change, for the friendlies list
+
+      matches.forEach((m, i) => {
+        const delta = history[i].delta;  // history has one entry per match, same order
+        swing.set(m.id, Math.round(Math.abs(delta)));
+
+        const h = stats.get(m.home_team_id), a = stats.get(m.away_team_id);
+        if (!h || !a) return;            // skip players who were deactivated
+        h.gp++; a.gp++;
+        h.last = delta; a.last = -delta;
+        if (m.home_goals > m.away_goals)      { h.w++; a.l++; }
+        else if (m.home_goals < m.away_goals) { a.w++; h.l++; }
+        else                                  { h.d++; a.d++; }
+      });
+
+      // ---- rankings table ----
+      const ranked = teams
+        .filter(t => stats.get(t.id).gp > 0)
+        .map(t => ({ team: t, rating: ratings.get(t.id), ...stats.get(t.id) }))
+        .sort((x, y) => y.rating - x.rating);
+
+      $("rows").innerHTML = ranked.length ? ranked.map((r, i) => {
+        const last = Math.round(r.last);
+        return `
+          <tr>
+            <td>${i + 1}</td>
+            <td class="left">
+              <span class="dot" style="background:${esc(r.team.color)}"></span>
+              ${esc(r.team.name)}
+              ${r.team.in_league ? "" : `<small class="tag">guest</small>`}
+            </td>
+            <td class="pts">${Math.round(r.rating)}</td>
+            <td class="${last > 0 ? "up" : last < 0 ? "down" : ""}">${last ? signed(last) : "–"}</td>
+            <td>${r.gp}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
+          </tr>`;
+      }).join("") : `<tr><td colspan="8">No games played yet.</td></tr>`;
+
+      // ---- recent friendlies ----
+      const name = id => teams.find(t => t.id === id)?.name ?? "?";
+      const friendlies = matches.filter(m => m.stage === "friendly").reverse().slice(0, 20);
+
+      $("recent").innerHTML = friendlies.length ? friendlies.map(m => `
+        <li>
+          <span>
+            ${esc(name(m.home_team_id))} <b>${m.home_goals}–${m.away_goals}</b>
+            ${esc(name(m.away_team_id))}
+            <small>${new Date(m.played_at).toLocaleDateString()}</small>
+          </span>
+          <small>±${swing.get(m.id)} Elo</small>
+        </li>`).join("") : "<li>No friendlies yet.</li>";
+    } catch (e) {
+      $("rows").innerHTML = `<tr><td colspan="8">Couldn't load: ${esc(e.message)}</td></tr>`;
+      console.error(e);
+    }
+  </script>
+</body>
+</html>
