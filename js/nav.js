@@ -9,6 +9,8 @@ const PAGES = [
 
 const here = location.pathname.split("/").pop() || "index.html";
 
-document.getElementById("nav").innerHTML = PAGES.map(([href, label]) =>
-  `<a href="${href}"${href === here ? ' class="active"' : ""}>${label}</a>`
-).join("");
+document.getElementById("nav").innerHTML =
+  `<a href="index.html" class="brand"><img src="img/logo.png" alt="Home"></a>` +
+  PAGES.map(([href, label]) =>
+    `<a href="${href}"${href === here ? ' class="active"' : ""}>${label}</a>`
+  ).join("");
