@@ -73,8 +73,9 @@
   </main>
 
   <script type="module">
-    import { getSession, signIn, signOut, getAllTeams, submitScore } from "./js/db.js";
-    import { REPORT_EMAIL } from "./js/config.js";
+    import { getSession, signIn, signOut, getAllTeams, getAllMatches, submitScore } from "./js/db.js";
+    import { REPORT_EMAIL, CLUB_SUGGESTIONS } from "./js/config.js";
+    import { cleanClub, clubOptions } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? "").replace(/[&<>"]/g,
