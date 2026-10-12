@@ -3,7 +3,20 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, LEAGUE } from "./config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ---------- reads (public) ----------
+
+// League members only: home, standings, playoffs
 export async function getTeams() {
+  const { data, error } = await supabase
+    .from("teams").select("*")
+    .eq("active", true).eq("in_league", true)
+    .order("name");
+  if (error) throw error;
+  return data;
+}
+
+// Everyone, including casual players: friendlies, Elo, report, admin
+export async function getAllTeams() {
   const { data, error } = await supabase
     .from("teams").select("*").eq("active", true).order("name");
   if (error) throw error;
@@ -17,7 +30,14 @@ export async function getMatches(season = LEAGUE.season) {
   return data;
 }
 
-// ---------- admin (writes require your login) ----------
+export async function getAllMatches() {
+  const { data, error } = await supabase
+    .from("matches").select("*").order("played_at").order("id");
+  if (error) throw error;
+  return data;
+}
+
+// ---------- auth (admin and league logins) ----------
 
 export async function getSession() {
   const { data } = await supabase.auth.getSession();
@@ -33,6 +53,15 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
+// ---------- reporting (league login) ----------
+
+export async function submitScore(sub) {
+  const { error } = await supabase.from("submissions").insert(sub);
+  if (error) throw error;
+}
+
+// ---------- admin (your login) ----------
+
 export async function addMatch(match) {
   const { error } = await supabase
     .from("matches").insert({ ...match, season: LEAGUE.season });
@@ -44,9 +73,28 @@ export async function deleteMatch(id) {
   if (error) throw error;
 }
 
-export async function getAllMatches() {
+export async function getPendingSubmissions() {
   const { data, error } = await supabase
-    .from("matches").select("*").order("played_at").order("id");
+    .from("submissions").select("*")
+    .eq("status", "pending").order("created_at");
   if (error) throw error;
   return data;
+}
+
+export async function approveSubmission(id) {
+  const { error } = await supabase.rpc("approve_submission", { p_id: id });
+  if (error) throw error;
+}
+
+export async function rejectSubmission(id) {
+  const { error } = await supabase
+    .from("submissions").update({ status: "rejected" })
+    .eq("id", id).eq("status", "pending");
+  if (error) throw error;
+}
+
+export async function addPlayer(player) {
+  const { error } = await supabase
+    .from("teams").insert({ ...player, in_league: false });
+  if (error) throw error;
 }
