@@ -79,7 +79,7 @@
             <td>${i + 1}</td>
             <td class="left">
               <span class="dot" style="background:${esc(r.team.color)}"></span>
-              ${esc(r.team.name)}
+              ${playerLink(r.team)}
               ${r.team.in_league ? "" : `<small class="tag">guest</small>`}
             </td>
             <td class="pts">${Math.round(r.rating)}</td>
