@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Report a Score · FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="standings.html">Standings</a>
+    <a href="playoffs.html">Playoffs</a>
+    <a href="report.html" class="active">Report</a>
+  </nav>
+
+  <main>
+    <h1>Report a score</h1>
+
+    <!-- logged out -->
+    <form id="login" class="panel hidden">
+      <label>League password <input type="password" id="password" required></label>
+      <button type="submit">Enter</button>
+      <p class="msg" id="login-msg"></p>
+    </form>
+
+    <!-- logged in -->
+    <section id="report" class="hidden">
+      <form id="score-form" class="panel">
+        <label>Your name <input id="name" maxlength="40" required></label>
+
+        <label>Game type
+          <select id="stage">
+            <option value="league">League</option>
+            <option value="playoff">Playoff</option>
+            <option value="friendly">Friendly</option>
+          </select>
+        </label>
+
+        <div class="row">
+          <label>Home <select id="home" required></select></label>
+          <label>Goals <input type="number" id="home-goals" min="0" required></label>
+        </div>
+        <div class="row">
+          <label>Away <select id="away" required></select></label>
+          <label>Goals <input type="number" id="away-goals" min="0" required></label>
+        </div>
+
+        <div class="row hidden" id="pens-row">
+          <label>Home pens <input type="number" id="home-pens" min="0"></label>
+          <label>Away pens <input type="number" id="away-pens" min="0"></label>
+        </div>
+
+        <label>Date played <input type="date" id="date"></label>
+        <label>Note (optional) <input id="note" maxlength="200"></label>
+
+        <button type="submit">Submit for approval</button>
+        <p class="msg" id="msg"></p>
+      </form>
+
+      <p class="note">
+        Player missing from the list? Ask the commissioner to add them.
+        · <a href="#" id="logout">Log out</a>
+      </p>
+    </section>
+  </main>
+
+  <script type="module">
+    import { getSession, signIn, signOut, getAllTeams, submitScore } from "./js/db.js";
+    import { REPORT_EMAIL } from "./js/config.js";
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? "").replace(/[&<>"]/g,
+      c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
+    let teams = [];
+
+    // ---- remember name (wrapped: storage can be blocked in private mode) ----
+    const saved = (() => { try { return localStorage.getItem("reporter") ?? ""; } catch { return ""; } })();
+    $("name").value = saved;
+
+    // ---- which view ----
+    async function render() {
+      const session = await getSession();
+      $("login").classList.toggle("hidden", !!session);
+      $("report").classList.toggle("hidden", !session);
+      if (session) {
+        teams = await getAllTeams();
+        fillPlayers();
+        $("date").value = today();
+      }
+    }
+
+    // ---- login: password only, email is fixed ----
+    $("login").addEventListener("submit", async e => {
+      e.preventDefault();
+      $("login-msg").textContent = "Checking…";
+      try {
+        await signIn(REPORT_EMAIL, $("password").value);
+        $("login-msg").textContent = "";
+        await render();
+      } catch {
+        $("login-msg").textContent = "Wrong password.";
+      }
+    });
+
+    $("logout").addEventListener("click", async e => {
+      e.preventDefault();
+      await signOut();
+      await render();
+    });
+
+    // ---- player list depends on game type ----
+    function fillPlayers() {
+      const stage = $("stage").value;
+      const list = stage === "friendly" ? teams : teams.filter(t => t.in_league);
+      const options = list.map(t =>
+        `<option value="${t.id}">${esc(t.name)}${t.in_league ? "" : " (guest)"}</option>`).join("");
+      $("home").innerHTML = options;
+      $("away").innerHTML = options;
+      if (list.length > 1) $("away").selectedIndex = 1;
+      $("pens-row").classList.toggle("hidden", stage !== "playoff");
+    }
+    $("stage").addEventListener("change", fillPlayers);
+
+    // ---- submit ----
+    $("score-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const msg = $("msg");
+      const stage = $("stage").value;
+      const home = Number($("home").value);
+      const away = Number($("away").value);
+      const hg = Number($("home-goals").value);
+      const ag = Number($("away-goals").value);
+      const name = $("name").value.trim();
+
+      if (!name) { msg.textContent = "Add your name."; return; }
+      if (home === away) { msg.textContent = "Pick two different players."; return; }
+
+      const sub = {
+        stage, submitted_by: name,
+        home_team_id: home, away_team_id: away,
+        home_goals: hg, away_goals: ag,
+        note: $("note").value.trim() || null,
+      };
+
+      if (stage === "playoff" && hg === ag) {
+        const hp = $("home-pens").value, ap = $("away-pens").value;
+        if (hp === "" || ap === "" || hp === ap) {
+          msg.textContent = "Playoff draws need a penalty winner.";
+          return;
+        }
+        sub.home_pens = Number(hp);
+        sub.away_pens = Number(ap);
+      }
+
+      // today: let the database stamp the exact time; another day: use noon
+      const date = $("date").value;
+      if (date && date !== today()) {
+        sub.played_at = new Date(`${date}T12:00:00`).toISOString();
+      }
+
+      msg.textContent = "Sending…";
+      try {
+        await submitScore(sub);
+        try { localStorage.setItem("reporter", name); } catch {}
+        msg.textContent = "Sent ✓ The commissioner will approve it shortly.";
+        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "note"]) {
+          $(id).value = "";
+        }
+      } catch (err) {
+        msg.textContent = `Couldn't send: ${err.message}`;
