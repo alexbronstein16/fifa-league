@@ -210,3 +210,14 @@ button:disabled { opacity: 0.5; cursor: default; }
   color: var(--muted);
   font-size: 11px;
 }
+
+nav { align-items: center; }
+nav a.brand { padding: 0 8px 0 0; background: none; }
+nav a.brand img { width: 32px; height: 32px; object-fit: contain; display: block; }
+
+.side .crest, .side .dot { margin-right: 6px; }
+
+@media (max-width: 560px) {
+  nav { gap: 0; overflow-x: auto; }
+  nav a { padding: 6px 8px; white-space: nowrap; }
+}
