@@ -4,6 +4,8 @@ export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 // The shared league account
 export const REPORT_EMAIL = "alexbro1622@gmail.com";
+export const ADMIN_ID = "99247e39-ccae-4ae0-a3e3-364982c8db5f";
+
 export const LEAGUE = {
   name: "FIFA League",
   season: 1,
