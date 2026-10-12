@@ -195,3 +195,7 @@ button.secondary { background: var(--line); color: var(--text); font-weight: 400
 }
 
 .note a { color: var(--muted); }
+
+.actions { display: flex; gap: 6px; flex-shrink: 0; }
+input[type="color"] { padding: 2px; height: 40px; }
+button:disabled { opacity: 0.5; cursor: default; }
