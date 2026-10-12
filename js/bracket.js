@@ -17,18 +17,25 @@ function findMatch(playoffs, a, b) {
     (m.home_team_id === b && m.away_team_id === a)) ?? null;
 }
 
-// 4-team bracket: 1v4 and 2v3 semis, then a final.
+// 4-team bracket: 1v4 and 2v3 semis, then a final. With 3 teams, 1st gets a bye.
 export function buildBracket(standings, matches) {
   const seeds = standings.slice(0, 4).map(r => r.team.id);
   const playoffs = matches.filter(m => m.stage === "playoff");
 
-  const tie = (a, b) => {
-    const match = findMatch(playoffs, a ?? null, b ?? null);
-    return { a: a ?? null, b: b ?? null, match, winner: match ? winnerOf(match) : null };
+  // `bye`: in the semis, a team with no opponent (fewer than 4 teams) goes straight through.
+  // Never used for the final, where an empty slot just means a semi isn't finished yet.
+  const tie = (a, b, { bye = false } = {}) => {
+    a = a ?? null;
+    b = b ?? null;
+    const match = findMatch(playoffs, a, b);
+    const oneSided = (a == null) !== (b == null);
+    let winner = match ? winnerOf(match) : null;
+    if (!match && bye && oneSided) winner = a ?? b;
+    return { a, b, match, winner, bye: bye && oneSided };
   };
 
-  const semi1 = tie(seeds[0], seeds[3]);
-  const semi2 = tie(seeds[1], seeds[2]);
+  const semi1 = tie(seeds[0], seeds[3], { bye: true });
+  const semi2 = tie(seeds[1], seeds[2], { bye: true });
   const final = tie(semi1.winner, semi2.winner);
 
   return {
