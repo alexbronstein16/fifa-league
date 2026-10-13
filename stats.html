@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stats · Curtis Champions League</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#171a21">
+  <meta name="apple-mobile-web-app-title" content="Curtis League">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Curtis Champions League">
+  <meta property="og:title" content="Stats · Curtis Champions League">
+  <meta property="og:description" content="Standings, fixtures, playoffs and Elo for our FIFA league.">
+  <meta property="og:url" content="https://alexbronstein16.github.io/fifa-league/stats.html">
+  <meta property="og:image" content="https://alexbronstein16.github.io/fifa-league/img/icon-512.png">
+  <meta name="twitter:card" content="summary">
+</head>
+<body>
+  <nav id="nav"></nav>
+  <script src="js/nav.js"></script>
+
+  <main>
+    <h1>Stats</h1>
+
+    <h2 id="awards-title">Season awards</h2>
+    <p class="note" id="awards-note"></p>
+    <div class="awards" id="awards">Loading…</div>
+
+    <h2>Clubs</h2>
+    <p class="note" id="clubs-note"></p>
+    <div class="table-wrap" id="clubs-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="left">Club</th><th>GP</th><th>W</th><th>D</th><th>L</th>
+            <th>Win %</th><th class="hide-sm">Goals / game</th><th class="left">Best with it</th>
+          </tr>
+        </thead>
+        <tbody id="clubs"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script type="module">
+    import { getTeams, getAllTeams, getAllMatches } from "./js/db.js";
+    import { computeElo } from "./js/elo.js";
+    import { computeStandings } from "./js/standings.js";
+    import { buildBracket } from "./js/bracket.js";
+    import { seasonAwards, bestGuest, clubTable } from "./js/stats.js";
+    import { LEAGUE } from "./js/config.js";
+    import { esc, crestIcon, playerLink } from "./js/ui.js";
+
+    const $ = id => document.getElementById(id);
+    const ICON = { champion: "🏆", leader: "🥇", boot: "⚽", wall: "🧤", big: "💥", upset: "😱", streak: "🔥", improved: "📈", guest: "🌟" };
+
+    try {
+      const [leagueTeams, teams, matches] = await Promise.all([getTeams(), getAllTeams(), getAllMatches()]);
+      const byId = new Map(teams.map(t => [t.id, t]));
+      const team = id => byId.get(id);
+      const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
+
+      // ---- awards ----
+      const season = matches.filter(m => m.season === LEAGUE.season);
+      const leagueIds = new Set(leagueTeams.map(t => t.id));
+      const guestIds = new Set(teams.filter(t => !t.in_league).map(t => t.id));
+      const played = new Set(matches.flatMap(m => [m.home_team_id, m.away_team_id]));
+
+      const standings = computeStandings(leagueTeams, season, LEAGUE.points);
+      const bracket = buildBracket(standings, season);
+      const awards = [];
+      if (bracket.champion) {
+        awards.push({ key: "champion", label: "Champion", teamId: bracket.champion, value: "Won the playoffs", detail: "" });
+      } else if (season.some(m => m.stage === "league")) {
+        const top = standings[0];
+        awards.push({ key: "leader", label: "Top of the table", teamId: top.team.id,
+          value: `${top.pts} pts`, detail: `from ${top.p} games` });
+      }
+      awards.push(...seasonAwards({ season: LEAGUE.season, allMatches: matches, history, leagueIds }));
+      const guest = bestGuest(ratings, guestIds, played);
+      if (guest) awards.push(guest);
+
+      $("awards-title").textContent = `Season ${LEAGUE.season} awards`;
+      $("awards-note").textContent = bracket.champion
+        ? "Final results for the season."
+        : "So far this season. These update after every game until the playoffs finish.";
+      $("awards").innerHTML = awards.filter(a => team(a.teamId)).map(a => `
+        <div class="award">
+          <span class="award-icon">${ICON[a.key] ?? "⭐"}</span>
+          <div class="award-body">
+            <small>${a.label}</small>
+            <div class="award-who">${crestIcon(team(a.teamId))}${playerLink(team(a.teamId))}</div>
+            <div class="award-detail">${
+              a.key === "upset" ? `beat ${playerLink(team(a.other))} · <b>${esc(a.value)}</b>`
+              : a.other ? `<b>${esc(a.value)}</b> ${esc(a.detail)} ${playerLink(team(a.other))}`
+              : `<b>${esc(a.value)}</b>${a.detail ? ` ${esc(a.detail)}` : ""}`}</div>
+          </div>
+        </div>`).join("") || `<p class="note">Awards appear once games are played.</p>`;
+
+      // ---- clubs ----
+      const clubs = clubTable(matches);
+      const withClub = matches.filter(m => m.home_club || m.away_club).length;
+      $("clubs-wrap").hidden = !clubs.length;
+      $("clubs-note").textContent = clubs.length
+        ? `All games, all seasons. Clubs recorded in ${withClub} of ${matches.length} games.`
+        : "No clubs recorded yet. Add them when reporting a game.";
+      $("clubs").innerHTML = clubs.map(c => `
+        <tr>
+          <td class="left">${esc(c.club)}</td>
+          <td>${c.gp}</td><td>${c.w}</td><td>${c.d}</td><td>${c.l}</td>
+          <td>${Math.round(c.winPct * 100)}%</td>
+          <td class="hide-sm">${(c.gf / c.gp).toFixed(1)}</td>
+          <td class="left">${crestIcon(team(c.topId))}${playerLink(team(c.topId))}
+            <small class="note-inline">${c.topW}W in ${c.topGp}</small></td>
+        </tr>`).join("");
+    } catch (e) {
+      $("awards").textContent = `Couldn't load stats: ${e.message}`;
+      console.error(e);
+    }
+  </script>
+</body>
+</html>

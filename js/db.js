@@ -1,4 +1,4 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, LEAGUE } from "./config.js";
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -97,4 +97,16 @@ export async function addPlayer(player) {
   const { error } = await supabase
     .from("teams").insert({ ...player, in_league: false });
   if (error) throw error;
+}
+
+// Everything, for the admin backup download (admin login can read all rows)
+export async function getBackup() {
+  const read = async table => {
+    const { data, error } = await supabase.from(table).select("*").order("id");
+    if (error) throw error;
+    return data;
+  };
+  const [teams, matches, submissions] =
+    await Promise.all([read("teams"), read("matches"), read("submissions")]);
+  return { exported_at: new Date().toISOString(), teams, matches, submissions };
 }

@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin · FIFA League</title>
+  <title>Admin · Curtis Champions League</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="apple-touch-icon" href="img/icon-180.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#171a21">
-  <meta name="apple-mobile-web-app-title" content="FIFA League">
+  <meta name="apple-mobile-web-app-title" content="Curtis League">
 </head>
 <body>
   <nav id="nav"></nav>
@@ -46,7 +46,7 @@
           <label>Home <select id="home" required></select></label>
           <label>Goals <input type="number" id="home-goals" min="0" required></label>
         </div>
-        <label class="club">Home club <small>optional</small>
+        <label class="club"><span>Home club <small>optional</small></span>
           <input id="home-club" maxlength="40" placeholder="Search clubs">
         </label>
 
@@ -54,7 +54,7 @@
           <label>Away <select id="away" required></select></label>
           <label>Goals <input type="number" id="away-goals" min="0" required></label>
         </div>
-        <label class="club">Away club <small>optional</small>
+        <label class="club"><span>Away club <small>optional</small></span>
           <input id="away-club" maxlength="40" placeholder="Search clubs">
         </label>
 
@@ -81,14 +81,20 @@
       <h2>Recent results</h2>
       <ul class="results" id="recent"></ul>
 
-      <button class="secondary" id="logout">Log out</button>
+      <h2>Backup</h2>
+      <p class="note">Downloads every team, match and report as one file. Keep a copy every few weeks;
+        it's the only copy of the league's history outside Supabase.</p>
+      <button class="secondary" id="backup">Download backup</button>
+      <p class="msg" id="backup-msg"></p>
+
+      <p><button class="secondary" id="logout">Log out</button></p>
     </section>
   </main>
 
   <script type="module">
     import { getSession, signIn, signOut, getAllTeams, getAllMatches,
              addMatch, deleteMatch, getPendingSubmissions,
-             approveSubmission, rejectSubmission, addPlayer } from "./js/db.js";
+             approveSubmission, rejectSubmission, addPlayer, getBackup } from "./js/db.js";
     import { ADMIN_ID, CLUB_SUGGESTIONS } from "./js/config.js";
     import { esc, cleanClub, clubNames } from "./js/ui.js";
     import { combobox } from "./js/combobox.js";
@@ -276,6 +282,24 @@
         await loadRecent();
       } catch (err) {
         alert(err.message);
+      }
+    });
+
+    // ---------- backup ----------
+    $("backup").addEventListener("click", async () => {
+      const msg = $("backup-msg");
+      msg.textContent = "Preparing…";
+      try {
+        const data = await getBackup();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `league-backup-${new Date().toLocaleDateString("en-CA")}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        msg.textContent = `Saved ${data.teams.length} teams, ${data.matches.length} matches, ${data.submissions.length} reports ✓`;
+      } catch (err) {
+        msg.textContent = `Error: ${err.message}`;
       }
     });
 

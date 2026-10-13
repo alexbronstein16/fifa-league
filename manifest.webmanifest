@@ -1,6 +1,6 @@
 {
-  "name": "FIFA League",
-  "short_name": "FIFA League",
+  "name": "Curtis Champions League",
+  "short_name": "Curtis League",
   "description": "Standings, fixtures, playoffs and Elo for our FIFA league.",
   "start_url": "./index.html",
   "scope": "./",

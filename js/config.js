@@ -35,7 +35,7 @@ export const CLUB_ALIASES = {
 };
 
 export const LEAGUE = {
-  name: "FIFA League",
+  name: "Curtis Champions League",
   season: 1,
   points: { win: 3, draw: 1, loss: 0 },
   playoffSpots: 4,

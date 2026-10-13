@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Player · FIFA League</title>
+  <title>Player · Curtis Champions League</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/logo.png">
   <link rel="apple-touch-icon" href="img/icon-180.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#171a21">
-  <meta name="apple-mobile-web-app-title" content="FIFA League">
+  <meta name="apple-mobile-web-app-title" content="Curtis League">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="FIFA League">
-  <meta property="og:title" content="Player · FIFA League">
+  <meta property="og:site_name" content="Curtis Champions League">
+  <meta property="og:title" content="Player · Curtis Champions League">
   <meta property="og:description" content="Standings, fixtures, playoffs and Elo for our FIFA league.">
   <meta property="og:url" content="https://alexbronstein16.github.io/fifa-league/player.html">
   <meta property="og:image" content="https://alexbronstein16.github.io/fifa-league/img/icon-512.png">
@@ -39,7 +39,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th class="left">Opponent</th><th>GP</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></tr>
+          <tr><th class="left">Opponent</th><th>GP</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th></th></tr>
         </thead>
         <tbody id="h2h"></tbody>
       </table>
@@ -89,7 +89,7 @@
         $("header").innerHTML = `<h1>Player not found</h1>`;
         return;
       }
-      document.title = `${me.name} · FIFA League`;
+      document.title = `${me.name} · Curtis Champions League`;
 
       const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
       allGames = playerGames(playerId, matches, history);
@@ -204,6 +204,7 @@
           <td class="left">${badge(team(r.opp))}${playerLink(team(r.opp))}</td>
           <td>${r.gp}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
           <td>${r.gf}</td><td>${r.ga}</td>
+          <td><a class="h2h-link" href="h2h.html?a=${playerId}&b=${r.opp}">H2H</a></td>
         </tr>`).join("");
 
       // clubs
