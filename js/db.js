@@ -93,9 +93,10 @@ export async function rejectSubmission(id) {
   if (error) throw error;
 }
 
+// New player/team. Guest (friendlies only) unless in_league is true.
 export async function addPlayer(player) {
   const { error } = await supabase
-    .from("teams").insert({ ...player, in_league: false });
+    .from("teams").insert({ in_league: false, ...player });
   if (error) throw error;
 }
 
