@@ -30,6 +30,12 @@
     <p class="note" id="awards-note"></p>
     <div class="awards" id="awards">Loading…</div>
 
+    <h2>Hall of shame</h2>
+    <div class="awards shame" id="shame"></div>
+
+    <h2>Fun stats</h2>
+    <div class="awards" id="fun"></div>
+
     <h2 id="board-title">Leaderboard</h2>
     <div class="table-wrap" id="board-wrap">
       <table>
@@ -63,13 +69,15 @@
     import { computeElo } from "./js/elo.js";
     import { computeStandings } from "./js/standings.js";
     import { buildBracket } from "./js/bracket.js";
-    import { entriesFor, computeAwards, playerTable, bestGuest, clubTable } from "./js/stats.js";
+    import { entriesFor, computeAwards, computeShame, computeFun, playerTable, bestGuest, clubTable } from "./js/stats.js";
     import { LEAGUE } from "./js/config.js";
     import { esc, crestIcon, playerLink } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
     const ICON = { champion: "🏆", leader: "🥇", wins: "✅", boot: "⚽", wall: "🧤", pct: "🎯", big: "💥",
-                   upset: "😱", streak: "🔥", improved: "📈", active: "🎮", guest: "🌟" };
+                   upset: "😱", streak: "🔥", improved: "📈", active: "🎮", guest: "🌟",
+                   spoon: "🥄", leaky: "🕳️", cold: "🥶", blank: "😶", drop: "📉", heavy: "🫠", choke: "🤡",
+                   fest: "🎆", draws: "🤝", cs: "🧱", bogey: "👻", attack: "🚀" };
     const signed = n => (n > 0 ? "+" : "") + n;
     let view = new URLSearchParams(location.search).get("view") === "friendlies" ? "friendlies" : "league";
     let data = null;
@@ -83,6 +91,9 @@
             <div class="award-who">${crestIcon(team(a.teamId))}${playerLink(team(a.teamId))}</div>
             <div class="award-detail">${
               a.key === "upset" ? `beat ${playerLink(team(a.other))} · <b>${esc(a.value)}</b>`
+              : a.key === "choke" ? `lost to ${playerLink(team(a.other))} · <b>${esc(a.value)}</b>`
+              : a.key === "fest" ? `<b>${esc(a.value)}</b> vs ${playerLink(team(a.other))} · ${esc(a.detail)}`
+              : a.key === "bogey" ? `<b>${esc(a.value)}</b> vs ${playerLink(team(a.other))} · ${esc(a.detail)}`
               : a.other ? `<b>${esc(a.value)}</b> ${esc(a.detail)} ${playerLink(team(a.other))}`
               : `<b>${esc(a.value)}</b>${a.detail ? ` ${esc(a.detail)}` : ""}`}</div>
           </div>
@@ -136,6 +147,24 @@
       $("awards-note").textContent = note;
       $("awards").innerHTML = awards.filter(a => team(a.teamId)).map(a => awardTile(a, team)).join("")
         || `<p class="note">Awards appear once games are played.</p>`;
+
+      // ---- hall of shame + fun ----
+      let shame = computeShame(entries, history, { eligible });
+      if (view === "league") {
+        // in the league, the wooden spoon is last place in the table
+        const season = entries.map(([m]) => m);
+        const table = computeStandings(leagueTeams, season, LEAGUE.points);
+        const last = table.at(-1);
+        shame = shame.filter(a => a.key !== "spoon");
+        if (last && season.some(m => m.stage === "league") && table.length > 1) {
+          shame.unshift({ key: "spoon", label: "Wooden spoon", teamId: last.team.id,
+            value: `${last.pts} pts`, detail: `last place after ${last.p} games` });
+        }
+      }
+      const tiles = (list, empty) => list.filter(a => team(a.teamId)).map(a => awardTile(a, team)).join("")
+        || `<p class="note">${empty}</p>`;
+      $("shame").innerHTML = tiles(shame, "Nobody to shame yet.");
+      $("fun").innerHTML = tiles(computeFun(entries, history, { eligible }), "Fun stats appear once a few games are played.");
 
       // ---- leaderboard ----
       const rows = playerTable(entries, history)
