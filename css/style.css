@@ -515,6 +515,7 @@ a.h2h-link:hover { color: var(--text); }
 .award-detail { font-size: 13px; color: var(--muted); }
 .award-detail b { color: var(--text); font-weight: 600; }
 .note-inline { color: var(--muted); margin-left: 4px; }
+.shame .award { border-color: #3a2a2d; background: linear-gradient(180deg, #1d181b, var(--panel)); }
 
 /* ---------- phones ---------- */
 @media (max-width: 560px) {
