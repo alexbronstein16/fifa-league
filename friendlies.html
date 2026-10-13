@@ -42,14 +42,14 @@
       Players appear after their first game.</p>
 
     <h2>Recent friendlies</h2>
-    <ul class="results" id="recent"></ul>
+    <div class="fx-card" id="recent"></div>
   </main>
 
   <script type="module">
     import { getAllTeams, getAllMatches } from "./js/db.js";
     import { computeElo } from "./js/elo.js";
     import { LEAGUE } from "./js/config.js";
-    import { badge, playerLink } from "./js/ui.js";
+    import { badge, playerLink, matchRow } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? "").replace(/[&<>"]/g,
@@ -100,18 +100,11 @@
       }).join("") : `<tr><td colspan="8">No games played yet.</td></tr>`;
 
       // ---- recent friendlies ----
-      const name = id => teams.find(t => t.id === id)?.name ?? "?";
+      const byId = new Map(teams.map(t => [t.id, t]));
       const friendlies = matches.filter(m => m.stage === "friendly").reverse().slice(0, 20);
-
-      $("recent").innerHTML = friendlies.length ? friendlies.map(m => `
-        <li>
-          <span>
-            ${playerLink(teams.find(t => t.id === m.home_team_id))} <b>${m.home_goals}–${m.away_goals}</b>
-            ${playerLink(teams.find(t => t.id === m.away_team_id))}
-            <small>${new Date(m.played_at).toLocaleDateString()}</small>
-          </span>
-          <small>±${swing.get(m.id)} Elo</small>
-        </li>`).join("") : "<li>No friendlies yet.</li>";
+      $("recent").innerHTML = friendlies.length
+        ? friendlies.map(m => matchRow(m, id => byId.get(id), { elo: { text: `±${swing.get(m.id)}` } })).join("")
+        : `<p class="fx-note">No friendlies yet.</p>`;
     } catch (e) {
       $("rows").innerHTML = `<tr><td colspan="8">Couldn't load: ${esc(e.message)}</td></tr>`;
       console.error(e);
