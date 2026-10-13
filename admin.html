@@ -67,15 +67,27 @@
         <p class="msg" id="match-msg"></p>
       </form>
 
-      <h2>Add a guest player</h2>
+      <h2>Add a player</h2>
       <form id="player-form" class="panel">
+        <label>Type
+          <select id="p-type">
+            <option value="guest">Guest (friendlies only)</option>
+            <option value="league">League team (standings and playoffs)</option>
+          </select>
+        </label>
         <div class="row">
-          <label>Name <input id="p-name" maxlength="40" required></label>
-          <label>Short <input id="p-short" maxlength="4"></label>
+          <label>Team name <input id="p-name" maxlength="40" required placeholder="e.g. City Wok"></label>
+          <label>Short <input id="p-short" maxlength="4" placeholder="WOK"></label>
         </div>
+        <label><span>Player name <small>optional</small></span> <input id="p-owner" maxlength="40" placeholder="Who plays as this team"></label>
+        <label class="club"><span>Usual club <small>optional</small></span>
+          <input id="p-club" maxlength="40" placeholder="Search clubs">
+        </label>
         <label>Color <input type="color" id="p-color" value="#8a92a6"></label>
         <button type="submit">Add player</button>
         <p class="msg" id="player-msg"></p>
+        <p class="note">To give them a crest later, upload the image to <code>img/crests/</code>
+          and set <code>crest_url</code> in Supabase.</p>
       </form>
 
       <h2>Recent results</h2>
@@ -129,6 +141,7 @@
         const clubs = clubNames(await getAllMatches(), CLUB_SUGGESTIONS);
         combobox($("home-club"), clubs);
         combobox($("away-club"), clubs);
+        combobox($("p-club"), clubs);
         pickersReady = true;
       }
       await Promise.all([loadInbox(), loadRecent()]);
@@ -243,23 +256,27 @@
     $("player-form").addEventListener("submit", async e => {
       e.preventDefault();
       const msg = $("player-msg");
-      const playerName = $("p-name").value.trim();
-      if (!playerName) return;
+      const teamName = $("p-name").value.trim();
+      if (!teamName) return;
+      const league = $("p-type").value === "league";
       msg.textContent = "Adding…";
       try {
         await addPlayer({
-          name: playerName,
+          name: teamName,
           short_name: $("p-short").value.trim().toUpperCase() || null,
+          owner_name: $("p-owner").value.trim() || null,
+          club: cleanClub($("p-club").value),
           color: $("p-color").value,
+          in_league: league,
         });
-        msg.textContent = `Added ${playerName} ✓`;
-        $("p-name").value = "";
-        $("p-short").value = "";
+        msg.textContent = `Added ${teamName} as a ${league ? "league team" : "guest"} ✓`;
+        for (const id of ["p-name", "p-short", "p-owner", "p-club"]) $(id).value = "";
+        $("p-type").value = "guest";
         teams = await getAllTeams();
         fillPlayers();
       } catch (err) {
         msg.textContent = err.message.includes("duplicate")
-          ? "A player with that name already exists."
+          ? "A team with that name already exists."
           : `Error: ${err.message}`;
       }
     });
