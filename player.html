@@ -57,8 +57,7 @@
     </div>
 
     <h2>Match history</h2>
-    <ul class="results" id="recent"></ul>
-    <div id="older"></div>
+    <div class="fx-card" id="history"></div>
   </main>
 
   <script type="module">
@@ -66,7 +65,7 @@
     import { computeElo } from "./js/elo.js";
     import { playerGames, summarize, headToHead, clubStats } from "./js/player.js";
     import { LEAGUE } from "./js/config.js";
-    import { esc, badge, playerLink } from "./js/ui.js";
+    import { esc, badge, playerLink, matchRow } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
     const signed = n => (n > 0 ? "+" : "") + n;
@@ -78,10 +77,12 @@
 
     const playerId = Number(new URLSearchParams(location.search).get("id"));
     let teams = [], allGames = [], stage = "all";
+    const matchById = new Map();
     const team = id => teams.find(t => t.id === id);
 
     async function main() {
       const matches = await getAllMatches();
+      for (const m of matches) matchById.set(m.id, m);
       teams = await getAllTeams();
       const me = team(playerId);
       if (!me) {
@@ -161,8 +162,8 @@
         $("clubs").innerHTML = "";
         $("club-note").textContent = "";
         $("club-table").hidden = true;
-        $("recent").innerHTML = "";
-        $("older").innerHTML = "";
+        $("history").innerHTML = "";
+        $("history").hidden = true;
         return;
       }
 
@@ -217,28 +218,20 @@
           <td>${pct(c.w / c.gp)}</td><td>${c.gf}</td><td>${c.ga}</td>
         </tr>`).join("");
 
-      // match history: newest first, last 5 visible, the rest expandable
+      // match history: newest first, last 5 visible, the rest behind "Show all"
       const newest = [...games].reverse();
       const row = g => {
         const change = Math.round(g.eloChange);
-        return `
-          <li>
-            <span>
-              <span class="form ${g.result}">${g.result}</span>
-              <b>${g.gf}–${g.ga}</b>${g.pf != null ? ` <small>(${g.pf}–${g.pa} pens)</small>` : ""}
-              ${g.club ? `<small>as ${esc(g.club)}</small> ` : ""}vs ${badge(team(g.opp))}${playerLink(team(g.opp))}${g.oppClub ? ` <small>(${esc(g.oppClub)})</small>` : ""}
-              <small>${STAGE_LABEL[g.stage]} · ${day(g.date)}</small>
-            </span>
-            <small class="${change > 0 ? "up" : change < 0 ? "down" : ""}">${signed(change)}</small>
-          </li>`;
+        return matchRow(matchById.get(g.id), team, {
+          status: `<span class="form ${g.result}">${g.result}</span>`,
+          elo: { text: signed(change), cls: change > 0 ? "up" : change < 0 ? "down" : "" },
+        });
       };
-      $("recent").innerHTML = newest.slice(0, 5).map(row).join("");
       const older = newest.slice(5);
-      $("older").innerHTML = older.length ? `
-        <details>
-          <summary>Show ${older.length} older ${older.length === 1 ? "match" : "matches"}</summary>
-          <ul class="results">${older.map(row).join("")}</ul>
-        </details>` : "";
+      $("history").hidden = false;
+      $("history").innerHTML = newest.slice(0, 5).map(row).join("") + (older.length ? `
+        <div class="fx-more" hidden>${older.map(row).join("")}</div>
+        <button class="fx-showall">Show ${older.length} older ${older.length === 1 ? "match" : "matches"}</button>` : "");
     }
 
     // ---------- Elo chart (all games, not filtered) ----------
@@ -299,6 +292,13 @@
         tip.hidden = true;
       });
     }
+
+    $("history").addEventListener("click", e => {
+      const more = e.target.closest(".fx-showall");
+      if (!more) return;
+      more.previousElementSibling.hidden = false;
+      more.remove();
+    });
 
     main().catch(e => {
       $("header").innerHTML = `<p>Couldn't load player: ${esc(e.message)}</p>`;
