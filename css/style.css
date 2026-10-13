@@ -515,6 +515,18 @@ a.h2h-link:hover { color: var(--text); }
 .award-detail { font-size: 13px; color: var(--muted); }
 .award-detail b { color: var(--text); font-weight: 600; }
 .note-inline { color: var(--muted); margin-left: 4px; }
+
+/* ---------- admin extras ---------- */
+.btn-row { display: flex; gap: 8px; }
+.btn-row button { flex: 1; }
+#match-form.editing { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.crest-pick { display: flex; align-items: center; gap: 12px; }
+.crest-pick input[type="file"] { flex: 1; min-width: 0; padding: 8px; }
+.crest-preview { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+label.check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
+label.check input { width: auto; }
+label.check small { color: var(--muted); flex-basis: 100%; }
 .shame .award { border-color: #3a2a2d; background: linear-gradient(180deg, #1d181b, var(--panel)); }
 
 /* ---------- phones ---------- */

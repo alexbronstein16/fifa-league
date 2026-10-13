@@ -127,9 +127,8 @@
         const change = new Map();
         matches.forEach((m, i) => {
           if (new Date(m.played_at).getTime() < weekAgo) return;
-          const d = history[i].delta;
-          change.set(m.home_team_id, (change.get(m.home_team_id) ?? 0) + d);
-          change.set(m.away_team_id, (change.get(m.away_team_id) ?? 0) - d);
+          change.set(m.home_team_id, (change.get(m.home_team_id) ?? 0) + history[i].deltaHome);
+          change.set(m.away_team_id, (change.get(m.away_team_id) ?? 0) + history[i].deltaAway);
         });
         const [climberId, climb] = [...change].sort((a, b) => b[1] - a[1])[0] ?? [];
         if (climb >= 1 && team(climberId)) {

@@ -32,7 +32,7 @@
       <h2>Inbox</h2>
       <ul class="results" id="inbox"></ul>
 
-      <h2>Enter a result</h2>
+      <h2 id="match-title">Enter a result</h2>
       <form id="match-form" class="panel">
         <label>Game type
           <select id="stage">
@@ -63,9 +63,17 @@
           <label>Away pens <input type="number" id="away-pens" min="0"></label>
         </div>
 
-        <button type="submit">Save result</button>
+        <label>Date played <input type="date" id="m-date"></label>
+
+        <div class="btn-row">
+          <button type="submit" id="match-save">Save result</button>
+          <button type="button" class="secondary hidden" id="match-cancel">Cancel edit</button>
+        </div>
         <p class="msg" id="match-msg"></p>
       </form>
+
+      <h2>Recent results</h2>
+      <ul class="results" id="recent"></ul>
 
       <h2>Add a player</h2>
       <form id="player-form" class="panel">
@@ -84,14 +92,46 @@
           <input id="p-club" maxlength="40" placeholder="Search clubs">
         </label>
         <label>Color <input type="color" id="p-color" value="#8a92a6"></label>
+        <label><span>Crest <small>optional · resized automatically</small></span>
+          <span class="crest-pick">
+            <img class="crest-preview" id="p-preview" alt="" hidden>
+            <input type="file" id="p-crest" accept="image/png,image/jpeg,image/webp">
+          </span>
+        </label>
         <button type="submit">Add player</button>
         <p class="msg" id="player-msg"></p>
-        <p class="note">To give them a crest later, upload the image to <code>img/crests/</code>
-          and set <code>crest_url</code> in Supabase.</p>
       </form>
 
-      <h2>Recent results</h2>
-      <ul class="results" id="recent"></ul>
+      <h2>Edit a team</h2>
+      <form id="edit-form" class="panel">
+        <label>Team <select id="e-team"></select></label>
+        <label>Type
+          <select id="e-type">
+            <option value="guest">Guest (friendlies only)</option>
+            <option value="league">League team (standings and playoffs)</option>
+          </select>
+        </label>
+        <div class="row">
+          <label>Team name <input id="e-name" maxlength="40" required></label>
+          <label>Short <input id="e-short" maxlength="4"></label>
+        </div>
+        <label><span>Player name <small>optional</small></span> <input id="e-owner" maxlength="40"></label>
+        <label class="club"><span>Usual club <small>optional</small></span>
+          <input id="e-club" maxlength="40" placeholder="Search clubs">
+        </label>
+        <label>Color <input type="color" id="e-color"></label>
+        <label><span>Crest <small>pick a new image to replace it</small></span>
+          <span class="crest-pick">
+            <img class="crest-preview" id="e-preview" alt="" hidden>
+            <input type="file" id="e-crest" accept="image/png,image/jpeg,image/webp">
+          </span>
+        </label>
+        <label class="check"><input type="checkbox" id="e-nocrest"> Remove crest (show color dot instead)</label>
+        <label class="check"><input type="checkbox" id="e-active"> Active
+          <small>untick to hide them everywhere; their games still count in Elo</small></label>
+        <button type="submit">Save changes</button>
+        <p class="msg" id="edit-msg"></p>
+      </form>
 
       <h2>Backup</h2>
       <p class="note">Downloads every team, match and report as one file. Keep a copy every few weeks;
@@ -104,18 +144,25 @@
   </main>
 
   <script type="module">
-    import { getSession, signIn, signOut, getAllTeams, getAllMatches,
-             addMatch, deleteMatch, getPendingSubmissions,
-             approveSubmission, rejectSubmission, addPlayer, getBackup } from "./js/db.js";
+    import { getSession, signIn, signOut, getAllTeams, getEveryTeam, getAllMatches,
+             addMatch, updateMatch, deleteMatch, getPendingSubmissions,
+             approveSubmission, rejectSubmission, addPlayer, updateTeam, uploadCrest,
+             getBackup } from "./js/db.js";
     import { ADMIN_ID, CLUB_SUGGESTIONS } from "./js/config.js";
     import { esc, cleanClub, clubNames } from "./js/ui.js";
     import { combobox } from "./js/combobox.js";
+    import { resizeCrest } from "./js/crest.js";
 
     const $ = id => document.getElementById(id);
-    let teams = [];
+    let teams = [];          // active teams (for picking players)
+    let everyTeam = [];      // all teams, including inactive (for the editor)
+    let recent = [];         // the matches shown in Recent results
+    let editing = null;      // the match being edited, or null
     let pickersReady = false;
-    const name = id => teams.find(t => t.id === id)?.name ?? "?";
+    const name = id => everyTeam.find(t => t.id === id)?.name ?? "?";
     const day = iso => new Date(iso).toLocaleDateString();
+    const ymd = d => new Date(d).toLocaleDateString("en-CA");  // YYYY-MM-DD, local time
+    const today = () => ymd(new Date());
     const club = c => c ? ` <small>(${esc(c)})</small>` : "";
     const scoreline = m => `
       ${esc(name(m.home_team_id))}${club(m.home_club)} <b>${m.home_goals}–${m.away_goals}</b>
@@ -134,14 +181,18 @@
       if (isAdmin) await loadAll();
     }
 
-    async function loadAll() {
-      teams = await getAllTeams();
+    async function loadTeams() {
+      [teams, everyTeam] = await Promise.all([getAllTeams(), getEveryTeam()]);
       fillPlayers();
+      fillEditor();
+    }
+
+    async function loadAll() {
+      await loadTeams();
+      $("m-date").value = today();
       if (!pickersReady) {
         const clubs = clubNames(await getAllMatches(), CLUB_SUGGESTIONS);
-        combobox($("home-club"), clubs);
-        combobox($("away-club"), clubs);
-        combobox($("p-club"), clubs);
+        for (const id of ["home-club", "away-club", "p-club", "e-club"]) combobox($(id), clubs);
         pickersReady = true;
       }
       await Promise.all([loadInbox(), loadRecent()]);
@@ -198,18 +249,67 @@
       }
     });
 
-    // ---------- direct entry ----------
+    // ---------- enter or edit a result ----------
     function fillPlayers() {
       const stage = $("stage").value;
       const list = stage === "friendly" ? teams : teams.filter(t => t.in_league);
+      const keep = [$("home").value, $("away").value];
       const options = list.map(t =>
         `<option value="${t.id}">${esc(t.name)}${t.in_league ? "" : " (guest)"}</option>`).join("");
       $("home").innerHTML = options;
       $("away").innerHTML = options;
-      if (list.length > 1) $("away").selectedIndex = 1;
+      // keep the picked players when switching game type, if they're still allowed
+      if (list.some(t => String(t.id) === keep[0])) $("home").value = keep[0];
+      if (list.some(t => String(t.id) === keep[1])) $("away").value = keep[1];
+      else if (list.length > 1 && $("away").value === $("home").value) $("away").selectedIndex = 1;
       $("pens-row").classList.toggle("hidden", stage !== "playoff");
     }
     $("stage").addEventListener("change", fillPlayers);
+
+    // make sure a team is in a dropdown even if it's inactive or the wrong type
+    const ensureOption = (sel, id) => {
+      if (![...sel.options].some(o => o.value === String(id))) {
+        sel.insertAdjacentHTML("beforeend", `<option value="${id}">${esc(name(id))}</option>`);
+      }
+      sel.value = String(id);
+    };
+
+    function clearMatchForm() {
+      for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "home-club", "away-club"]) $(id).value = "";
+      $("m-date").value = today();
+    }
+
+    function startEdit(m) {
+      editing = m;
+      $("stage").value = m.stage;
+      fillPlayers();
+      ensureOption($("home"), m.home_team_id);
+      ensureOption($("away"), m.away_team_id);
+      $("home-goals").value = m.home_goals;
+      $("away-goals").value = m.away_goals;
+      $("home-pens").value = m.home_pens ?? "";
+      $("away-pens").value = m.away_pens ?? "";
+      $("home-club").value = m.home_club ?? "";
+      $("away-club").value = m.away_club ?? "";
+      $("m-date").value = ymd(m.played_at);
+      $("match-title").textContent = "Edit result";
+      $("match-save").textContent = "Update result";
+      $("match-cancel").classList.remove("hidden");
+      $("match-form").classList.add("editing");
+      $("match-msg").textContent = `Editing: ${name(m.home_team_id)} ${m.home_goals}–${m.away_goals} ${name(m.away_team_id)}`;
+      $("match-title").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function stopEdit() {
+      editing = null;
+      $("match-title").textContent = "Enter a result";
+      $("match-save").textContent = "Save result";
+      $("match-cancel").classList.add("hidden");
+      $("match-form").classList.remove("editing");
+      clearMatchForm();
+      fillPlayers();
+    }
+    $("match-cancel").addEventListener("click", () => { stopEdit(); $("match-msg").textContent = ""; });
 
     $("match-form").addEventListener("submit", async e => {
       e.preventDefault();
@@ -225,6 +325,7 @@
       const match = {
         stage, home_team_id: home, away_team_id: away,
         home_goals: hg, away_goals: ag,
+        home_pens: null, away_pens: null,
         home_club: cleanClub($("home-club").value),
         away_club: cleanClub($("away-club").value),
       };
@@ -239,12 +340,22 @@
         match.away_pens = Number(ap);
       }
 
+      // date: only change the stored time if the date was changed, so the order
+      // of games played on the same day (which Elo depends on) is kept
+      const date = $("m-date").value;
+      const original = editing ? ymd(editing.played_at) : today();
+      if (date && date !== original) match.played_at = new Date(`${date}T12:00:00`).toISOString();
+
       msg.textContent = "Saving…";
       try {
-        await addMatch(match);
-        msg.textContent = "Saved ✓";
-        for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "home-club", "away-club"]) {
-          $(id).value = "";
+        if (editing) {
+          await updateMatch(editing.id, match);
+          stopEdit();
+          msg.textContent = "Updated ✓";
+        } else {
+          await addMatch(match);
+          clearMatchForm();
+          msg.textContent = "Saved ✓";
         }
         await loadRecent();
       } catch (err) {
@@ -252,16 +363,60 @@
       }
     });
 
-    // ---------- guest players ----------
+    // ---------- recent results ----------
+    async function loadRecent() {
+      recent = (await getAllMatches()).reverse().slice(0, 20);
+      $("recent").innerHTML = recent.length ? recent.map(m => `
+        <li>
+          <span>${scoreline(m)} <small>${m.stage} · ${day(m.played_at)}</small></span>
+          <span class="actions">
+            <button class="secondary" data-action="edit" data-id="${m.id}">Edit</button>
+            <button class="secondary" data-action="delete" data-id="${m.id}">Delete</button>
+          </span>
+        </li>`).join("") : "<li>No results yet.</li>";
+    }
+
+    $("recent").addEventListener("click", async e => {
+      const { action, id } = e.target.dataset;
+      if (!action) return;
+      const m = recent.find(x => x.id === Number(id));
+      if (action === "edit" && m) { startEdit(m); return; }
+      if (action === "delete") {
+        if (!confirm("Delete this result?")) return;
+        try {
+          await deleteMatch(Number(id));
+          if (editing?.id === Number(id)) stopEdit();
+          await loadRecent();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+    });
+
+    // ---------- crest previews ----------
+    function previewFrom(input, img) {
+      input.addEventListener("change", () => {
+        const f = input.files[0];
+        if (!f) { img.hidden = true; return; }
+        img.src = URL.createObjectURL(f);
+        img.hidden = false;
+      });
+    }
+    previewFrom($("p-crest"), $("p-preview"));
+    previewFrom($("e-crest"), $("e-preview"));
+
+    // ---------- add a player ----------
     $("player-form").addEventListener("submit", async e => {
       e.preventDefault();
       const msg = $("player-msg");
       const teamName = $("p-name").value.trim();
       if (!teamName) return;
       const league = $("p-type").value === "league";
+      const file = $("p-crest").files[0];
       msg.textContent = "Adding…";
       try {
-        await addPlayer({
+        const blob = file ? await resizeCrest(file) : null;  // fail early on a bad image
+        const created = await addPlayer({
           name: teamName,
           short_name: $("p-short").value.trim().toUpperCase() || null,
           owner_name: $("p-owner").value.trim() || null,
@@ -269,11 +424,15 @@
           color: $("p-color").value,
           in_league: league,
         });
+        if (blob) {
+          msg.textContent = "Uploading crest…";
+          await updateTeam(created.id, { crest_url: await uploadCrest(blob, created.id) });
+        }
         msg.textContent = `Added ${teamName} as a ${league ? "league team" : "guest"} ✓`;
-        for (const id of ["p-name", "p-short", "p-owner", "p-club"]) $(id).value = "";
+        for (const id of ["p-name", "p-short", "p-owner", "p-club", "p-crest"]) $(id).value = "";
+        $("p-preview").hidden = true;
         $("p-type").value = "guest";
-        teams = await getAllTeams();
-        fillPlayers();
+        await loadTeams();
       } catch (err) {
         msg.textContent = err.message.includes("duplicate")
           ? "A team with that name already exists."
@@ -281,24 +440,65 @@
       }
     });
 
-    // ---------- recent results ----------
-    async function loadRecent() {
-      const matches = (await getAllMatches()).reverse().slice(0, 15);
-      $("recent").innerHTML = matches.length ? matches.map(m => `
-        <li>
-          <span>${scoreline(m)} <small>${m.stage} · ${day(m.played_at)}</small></span>
-          <button class="secondary" data-id="${m.id}">Delete</button>
-        </li>`).join("") : "<li>No results yet.</li>";
+    // ---------- edit a team ----------
+    function fillEditor(selectId) {
+      const keep = selectId ?? Number($("e-team").value);
+      $("e-team").innerHTML = everyTeam.map(t => `<option value="${t.id}">${esc(t.name)}${
+        t.active ? (t.in_league ? "" : " (guest)") : " (inactive)"}</option>`).join("");
+      if (everyTeam.some(t => t.id === keep)) $("e-team").value = String(keep);
+      loadEditor();
     }
 
-    $("recent").addEventListener("click", async e => {
-      const id = e.target.dataset.id;
-      if (!id || !confirm("Delete this result?")) return;
+    function loadEditor() {
+      const t = everyTeam.find(x => x.id === Number($("e-team").value));
+      if (!t) return;
+      $("e-type").value = t.in_league ? "league" : "guest";
+      $("e-name").value = t.name;
+      $("e-short").value = t.short_name ?? "";
+      $("e-owner").value = t.owner_name ?? "";
+      $("e-club").value = t.club ?? "";
+      $("e-color").value = /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : "#8a92a6";
+      $("e-active").checked = t.active;
+      $("e-nocrest").checked = false;
+      $("e-crest").value = "";
+      $("e-preview").hidden = !t.crest_url;
+      if (t.crest_url) $("e-preview").src = t.crest_url;
+      $("edit-msg").textContent = "";
+    }
+    $("e-team").addEventListener("change", loadEditor);
+
+    $("edit-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const msg = $("edit-msg");
+      const id = Number($("e-team").value);
+      const newName = $("e-name").value.trim();
+      if (!id || !newName) return;
+      const file = $("e-crest").files[0];
+      msg.textContent = "Saving…";
       try {
-        await deleteMatch(Number(id));
-        await loadRecent();
+        const fields = {
+          name: newName,
+          short_name: $("e-short").value.trim().toUpperCase() || null,
+          owner_name: $("e-owner").value.trim() || null,
+          club: cleanClub($("e-club").value),
+          color: $("e-color").value,
+          in_league: $("e-type").value === "league",
+          active: $("e-active").checked,
+        };
+        if (file) {
+          msg.textContent = "Uploading crest…";
+          fields.crest_url = await uploadCrest(await resizeCrest(file), id);
+        } else if ($("e-nocrest").checked) {
+          fields.crest_url = null;
+        }
+        await updateTeam(id, fields);
+        await loadTeams();
+        fillEditor(id);
+        msg.textContent = `Saved ${newName} ✓`;
       } catch (err) {
-        alert(err.message);
+        msg.textContent = err.message.includes("duplicate")
+          ? "Another team already has that name."
+          : `Error: ${err.message}`;
       }
     });
 
@@ -311,7 +511,7 @@
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `league-backup-${new Date().toLocaleDateString("en-CA")}.json`;
+        a.download = `league-backup-${today()}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
         msg.textContent = `Saved ${data.teams.length} teams, ${data.matches.length} matches, ${data.submissions.length} reports ✓`;

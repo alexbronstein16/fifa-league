@@ -34,7 +34,7 @@ export function playerTable(entries, history) {
       if (gf === 0) row.blanks++;
       row.lossRun = r === "L" ? row.lossRun + 1 : 0;
       row.worstRun = Math.max(row.worstRun, row.lossRun);
-      row.elo += m.home_team_id === id ? history[i].delta : -history[i].delta;
+      row.elo += m.home_team_id === id ? history[i].deltaHome : history[i].deltaAway;
       row.run = r === "W" ? row.run + 1 : 0;
       row.bestRun = Math.max(row.bestRun, row.run);
       rows.set(id, row);

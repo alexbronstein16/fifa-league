@@ -65,13 +65,16 @@
       const swing = new Map(); // match id -> rating change, for the friendlies list
 
       matches.forEach((m, i) => {
-        const delta = history[i].delta;  // history has one entry per match, same order
-        swing.set(m.id, Math.round(Math.abs(delta)));
+        // history has one entry per match, same order
+        const dh = history[i].deltaHome, da = history[i].deltaAway;
+        // usually both players move the same amount; a new player can move more
+        const big = Math.round(Math.abs(dh)), small = Math.round(Math.abs(da));
+        swing.set(m.id, big === small ? `±${big}` : `${dh >= 0 ? "+" : "−"}${big} / ${da >= 0 ? "+" : "−"}${small}`);
 
         const h = stats.get(m.home_team_id), a = stats.get(m.away_team_id);
         if (!h || !a) return;            // skip players who were deactivated
         h.gp++; a.gp++;
-        h.last = delta; a.last = -delta;
+        h.last = dh; a.last = da;
         if (m.home_goals > m.away_goals)      { h.w++; a.l++; }
         else if (m.home_goals < m.away_goals) { a.w++; h.l++; }
         else                                  { h.d++; a.d++; }
@@ -103,7 +106,7 @@
       const byId = new Map(teams.map(t => [t.id, t]));
       const friendlies = matches.filter(m => m.stage === "friendly").reverse().slice(0, 20);
       $("recent").innerHTML = friendlies.length
-        ? friendlies.map(m => matchRow(m, id => byId.get(id), { elo: { text: `±${swing.get(m.id)}` } })).join("")
+        ? friendlies.map(m => matchRow(m, id => byId.get(id), { elo: { text: swing.get(m.id) } })).join("")
         : `<p class="fx-note">No friendlies yet.</p>`;
     } catch (e) {
       $("rows").innerHTML = `<tr><td colspan="8">Couldn't load: ${esc(e.message)}</td></tr>`;

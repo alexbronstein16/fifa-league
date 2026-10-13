@@ -25,7 +25,7 @@ export function playerGames(id, matches, history) {
     if (m.home_team_id !== id && m.away_team_id !== id) return;
     const g = fromPerspective(m, id);
     g.elo = history[i][id];
-    g.eloChange = m.home_team_id === id ? history[i].delta : -history[i].delta;
+    g.eloChange = m.home_team_id === id ? history[i].deltaHome : history[i].deltaAway;
     games.push(g);
   });
   return games;

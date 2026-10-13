@@ -93,11 +93,39 @@ export async function rejectSubmission(id) {
   if (error) throw error;
 }
 
-// New player/team. Guest (friendlies only) unless in_league is true.
+// New player/team. Guest (friendlies only) unless in_league is true. Returns the new row.
 export async function addPlayer(player) {
-  const { error } = await supabase
-    .from("teams").insert({ in_league: false, ...player });
+  const { data, error } = await supabase
+    .from("teams").insert({ in_league: false, ...player }).select().single();
   if (error) throw error;
+  return data;
+}
+
+// Every team, including inactive ones (for the admin team editor)
+export async function getEveryTeam() {
+  const { data, error } = await supabase.from("teams").select("*").order("name");
+  if (error) throw error;
+  return data;
+}
+
+export async function updateTeam(id, fields) {
+  const { error } = await supabase.from("teams").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateMatch(id, fields) {
+  const { error } = await supabase.from("matches").update(fields).eq("id", id);
+  if (error) throw error;
+}
+
+// Upload a crest image to Supabase Storage and return its public URL.
+// Every upload gets a new file name, so phones never show a stale cached crest.
+export async function uploadCrest(blob, teamId) {
+  const path = `team-${teamId}-${Date.now()}.png`;
+  const bucket = supabase.storage.from("crests");
+  const { error } = await bucket.upload(path, blob, { contentType: "image/png", cacheControl: "31536000" });
+  if (error) throw error;
+  return bucket.getPublicUrl(path).data.publicUrl;
 }
 
 // Everything, for the admin backup download (admin login can read all rows)

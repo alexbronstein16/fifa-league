@@ -40,5 +40,10 @@ export const LEAGUE = {
   points: { win: 3, draw: 1, loss: 0 },
   playoffSpots: 4,
   legs: 2,        // times each pair plays in the league (2 = home and away)
-  elo: { start: 1500, k: 32, kPlayoff: 40, kFriendly: 16 },
+  elo: {
+    start: 1500, k: 32, kPlayoff: 40, kFriendly: 16,
+    // new players' ratings move faster until they've played this many games,
+    // so they reach their real level quickly (their opponents move normally)
+    provisionalGames: 10, provisionalFactor: 2,
+  },
 };

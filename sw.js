@@ -29,6 +29,8 @@ self.addEventListener("fetch", event => {
   // league data: only the public tables, never auth or admin-only data
   if (url.hostname.endsWith(".supabase.co")) {
     if (/^\/rest\/v1\/(teams|matches)\b/.test(url.pathname)) event.respondWith(networkFirst(req));
+    // crests uploaded from admin get a new file name every time, so they never go stale
+    else if (url.pathname.startsWith("/storage/v1/object/public/crests/")) event.respondWith(cacheFirst(req));
     return;
   }
 
