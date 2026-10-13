@@ -392,6 +392,11 @@ details summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
 .fx-score small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
 .fx-row.upcoming .fx-score { color: var(--muted); font-size: 13px; font-weight: 500; }
 .fx-right { text-align: right; color: var(--muted); font-size: 12px; }
+.fx-elo { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fx-elo.up { color: var(--win); }
+.fx-elo.down { color: var(--loss); }
+.fx-status .form { margin: 0; }
+.fx-card > .fx-row:first-child { border-top: 0; }
 .pill {
   display: inline-block;
   padding: 3px 8px;
@@ -458,6 +463,9 @@ details summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
     font-size: 14px;
   }
   .fx-status { display: none; }  /* the score and date already show it's finished */
+  /* player page: keep the W/D/L badge, it's the point of the row */
+  .fx-row.with-result { grid-template-columns: 22px minmax(0, 1fr) 20px 48px 20px minmax(0, 1fr) 40px; }
+  .fx-row.with-result .fx-status { display: block; }
   .fx-row .ci { width: 20px; height: 20px; }
   .fx-score { font-size: 15px; }
   .pill { padding: 2px 6px; font-size: 10px; }
