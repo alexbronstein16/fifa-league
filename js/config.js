@@ -15,10 +15,30 @@ export const CLUB_SUGGESTIONS = [
   "Borussia Dortmund", "Newcastle", "Aston Villa", "Napoli",
 ];
 
+// Nicknames people type, mapped to the club name used in stats.
+// Typing an alias finds the club, and leaving the box snaps it to the full name.
+export const CLUB_ALIASES = {
+  "PSG": "Paris Saint-Germain",
+  "Man City": "Manchester City",
+  "Man Utd": "Manchester United",
+  "Man United": "Manchester United",
+  "Spurs": "Tottenham",
+  "Barca": "Barcelona",
+  "Atleti": "Atletico Madrid",
+  "Inter Milan": "Inter",
+  "Bayern": "Bayern Munich",
+  "Dortmund": "Borussia Dortmund",
+  "BVB": "Borussia Dortmund",
+  "Juve": "Juventus",
+  "Milan": "AC Milan",
+  "Villa": "Aston Villa",
+};
+
 export const LEAGUE = {
   name: "FIFA League",
   season: 1,
   points: { win: 3, draw: 1, loss: 0 },
   playoffSpots: 4,
+  legs: 2,        // times each pair plays in the league (2 = home and away)
   elo: { start: 1500, k: 32, kPlayoff: 40, kFriendly: 16 },
 };

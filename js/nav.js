@@ -2,6 +2,7 @@
 const PAGES = [
   ["index.html", "Home"],
   ["standings.html", "Standings"],
+  ["fixtures.html", "Fixtures"],
   ["playoffs.html", "Playoffs"],
   ["friendlies.html", "Friendlies"],
   ["report.html", "Report"],

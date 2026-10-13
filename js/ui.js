@@ -32,3 +32,39 @@ export function clubNames(matches, suggestions = []) {
     .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name))
     .map(c => c.name);
 }
+
+// Round crest for match rows: the image, or a colored circle with the team's initial.
+export const crestIcon = t => t?.crest_url
+  ? `<img class="ci" src="${esc(t.crest_url)}" alt="">`
+  : `<span class="ci ci-fallback" style="background:${esc(t?.color ?? "#555")}">${esc((t?.short_name || t?.name || "?")[0])}</span>`;
+
+export const shortDate = iso => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+// One FotMob-style match row. `team` looks up a team object by id.
+// Pass a match from the database, or { home_team_id, away_team_id } with no
+// goals for a game still to be played.
+export function matchRow(m, team, { right = "" } = {}) {
+  const home = team(m.home_team_id), away = team(m.away_team_id);
+  const played = m.home_goals != null;
+  const pens = played && m.home_pens != null;
+  const status = !played ? "" : pens ? "Pens" : "FT";
+  const right_ = right || (played ? shortDate(m.played_at) : "");
+  const side = (t, club, cls) => `
+    <span class="fx-team ${cls}">
+      ${playerLink(t)}
+      ${club ? `<small>${esc(club)}</small>` : ""}
+    </span>`;
+  return `
+    <div class="fx-row${played ? "" : " upcoming"}">
+      <span class="fx-status">${status ? `<span class="pill">${status}</span>` : ""}</span>
+      ${side(home, m.home_club, "home")}
+      ${crestIcon(home)}
+      <span class="fx-score">
+        ${played ? `${m.home_goals} - ${m.away_goals}` : "vs"}
+        ${pens ? `<small>${m.home_pens} - ${m.away_pens} pens</small>` : ""}
+      </span>
+      ${crestIcon(away)}
+      ${side(away, m.away_club, "away")}
+      <span class="fx-right">${right_}</span>
+    </div>`;
+}

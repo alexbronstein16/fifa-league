@@ -1,0 +1,14 @@
+{
+  "name": "FIFA League",
+  "short_name": "FIFA League",
+  "description": "Standings, fixtures, playoffs and Elo for our FIFA league.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#171a21",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

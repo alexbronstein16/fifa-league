@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixtures · FIFA League</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#171a21">
+  <meta name="apple-mobile-web-app-title" content="FIFA League">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FIFA League">
+  <meta property="og:title" content="Fixtures · FIFA League">
+  <meta property="og:description" content="Standings, fixtures, playoffs and Elo for our FIFA league.">
+  <meta property="og:url" content="https://alexbronstein16.github.io/fifa-league/fixtures.html">
+  <meta property="og:image" content="https://alexbronstein16.github.io/fifa-league/img/icon-512.png">
+  <meta name="twitter:card" content="summary">
+</head>
+<body>
+  <nav id="nav"></nav>
+  <script src="js/nav.js"></script>
+
+  <main>
+    <h1>Fixtures</h1>
+
+    <div class="progress" id="progress"></div>
+    <div id="cards">Loading…</div>
+  </main>
+
+  <script type="module">
+    import { getTeams, getAllTeams, getAllMatches } from "./js/db.js";
+    import { LEAGUE } from "./js/config.js";
+    import { esc, matchRow } from "./js/ui.js";
+
+    const $ = id => document.getElementById(id);
+    const SHOW = 10;  // rows per card before "Show all"
+
+    // remember which cards are collapsed (per browser; storage can be blocked)
+    const closedKey = "fixtures-closed";
+    const closed = new Set((() => { try { return JSON.parse(localStorage.getItem(closedKey)) ?? []; } catch { return []; } })());
+    const saveClosed = () => { try { localStorage.setItem(closedKey, JSON.stringify([...closed])); } catch {} };
+
+    function card(id, icon, title, rows, { note = "" } = {}) {
+      if (!rows.length) return "";
+      const open = !closed.has(id);
+      const first = rows.slice(0, SHOW).join("");
+      const rest = rows.slice(SHOW);
+      return `
+        <section class="fx-card${open ? "" : " closed"}" data-card="${id}">
+          <button class="fx-head" aria-expanded="${open}">
+            <span class="fx-icon">${icon}</span>
+            <span class="fx-title">${title}</span>
+            <span class="fx-count">${rows.length}</span>
+            <span class="caret" aria-hidden="true"></span>
+          </button>
+          <div class="fx-body">
+            ${note ? `<p class="fx-note">${note}</p>` : ""}
+            ${first}
+            ${rest.length ? `
+              <div class="fx-more" hidden>${rest.join("")}</div>
+              <button class="fx-showall">Show all ${rows.length}</button>` : ""}
+          </div>
+        </section>`;
+    }
+
+    try {
+      const [leagueTeams, allTeams, matches] =
+        await Promise.all([getTeams(), getAllTeams(), getAllMatches()]);
+      const byId = new Map(allTeams.map(t => [t.id, t]));
+      const team = id => byId.get(id);
+      const newest = list => [...list].reverse();
+
+      const season = matches.filter(m => m.season === LEAGUE.season);
+      const league = season.filter(m => m.stage === "league");
+      const playoffs = season.filter(m => m.stage === "playoff");
+      const friendlies = matches.filter(m => m.stage === "friendly");
+
+      // ---- league games still to play: every pair plays LEAGUE.legs times ----
+      const legs = LEAGUE.legs ?? 2;
+      const ids = leagueTeams.map(t => t.id);
+      const pairKey = (a, b) => a < b ? `${a}-${b}` : `${b}-${a}`;
+      const playedCount = new Map();
+      for (const m of league) {
+        const k = pairKey(m.home_team_id, m.away_team_id);
+        playedCount.set(k, (playedCount.get(k) ?? 0) + 1);
+      }
+      const upcoming = [];
+      let totalGames = 0;
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          totalGames += legs;
+          const left = legs - (playedCount.get(pairKey(ids[i], ids[j])) ?? 0);
+          if (left > 0) upcoming.push({ home_team_id: ids[i], away_team_id: ids[j], left });
+        }
+      }
+      upcoming.sort((a, b) => b.left - a.left);  // pairs that haven't met yet first
+
+      // ---- progress bar ----
+      const done = Math.min(league.filter(m => ids.includes(m.home_team_id) && ids.includes(m.away_team_id)).length, totalGames);
+      if (totalGames) {
+        const pct = Math.round(done / totalGames * 100);
+        $("progress").innerHTML = `
+          <div class="progress-label"><span>Season ${LEAGUE.season}</span><span>${done} of ${totalGames} league games · ${pct}%</span></div>
+          <div class="progress-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+            <span style="width:${pct}%"></span>
+          </div>`;
+      }
+
+      // ---- cards ----
+      const logo = `<img src="img/logo.png" alt="">`;
+      $("cards").innerHTML = [
+        card("upcoming", "📅", "To play",
+          upcoming.map(u => matchRow(u, team, { right: u.left > 1 ? `×${u.left}` : "" })),
+          { note: "League games still to be played. ×2 means they haven't met yet." }),
+        card("league", logo, `${esc(LEAGUE.name)} · Season ${LEAGUE.season}`, newest(league).map(m => matchRow(m, team))),
+        card("playoffs", "🏆", "Playoffs", newest(playoffs).map(m => matchRow(m, team))),
+        card("friendlies", "🤝", "Friendlies", newest(friendlies).map(m => matchRow(m, team))),
+      ].join("") || `<p class="note">No games yet.</p>`;
+    } catch (e) {
+      $("cards").textContent = `Couldn't load fixtures: ${e.message}`;
+      console.error(e);
+    }
+
+    // collapse / expand, and "show all"
+    $("cards").addEventListener("click", e => {
+      const head = e.target.closest(".fx-head");
+      if (head) {
+        const sec = head.parentElement;
+        const open = sec.classList.toggle("closed") === false;
+        head.setAttribute("aria-expanded", open);
+        open ? closed.delete(sec.dataset.card) : closed.add(sec.dataset.card);
+        saveClosed();
+        return;
+      }
+      const more = e.target.closest(".fx-showall");
+      if (more) {
+        more.previousElementSibling.hidden = false;
+        more.remove();
+      }
+    });
+  </script>
+</body>
+</html>

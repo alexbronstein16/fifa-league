@@ -4,7 +4,8 @@ function marginMultiplier(diff) {
   return (11 + diff) / 8;
 }
 
-function expected(rating, opponent) {
+// Chance (0 to 1) that `rating` beats `opponent`.
+export function expected(rating, opponent) {
   return 1 / (1 + 10 ** ((opponent - rating) / 400));
 }
 
@@ -26,12 +27,14 @@ export function computeElo(teams, matches, cfg) {
 
     const k = { league: cfg.k, playoff: cfg.kPlayoff, friendly: cfg.kFriendly }[m.stage] ?? cfg.k;
     const g = marginMultiplier(Math.abs(m.home_goals - m.away_goals));
-    const delta = k * g * (result - expected(rh, ra));
+    const exp = expected(rh, ra);
+    const delta = k * g * (result - exp);
 
     ratings.set(h, rh + delta);
     ratings.set(a, ra - delta);
+    // homeExpected: the home player's pre-game win chance, used to spot upsets
     history.push({ matchId: m.id, playedAt: m.played_at,
-                   [h]: rh + delta, [a]: ra - delta, delta });
+                   [h]: rh + delta, [a]: ra - delta, delta, homeExpected: exp });
   }
 
   return { ratings, history };

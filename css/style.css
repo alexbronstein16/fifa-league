@@ -47,6 +47,7 @@ h3 { margin: 20px 0 6px; font-size: 15px; color: var(--accent); }
 .note { color: var(--muted); font-size: 13px; margin-top: 12px; }
 .note a { color: var(--muted); }
 .hidden { display: none !important; }
+[hidden] { display: none !important; }
 .big { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ---------- tables ---------- */
@@ -333,6 +334,114 @@ details summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
 }
 .tip[hidden] { display: none; }
 
+/* ---------- fixtures (FotMob-style match cards) ---------- */
+.fx-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.fx-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #1c2029;
+  color: var(--text);
+  font-weight: 600;
+  border-radius: 0;
+  text-align: left;
+}
+.fx-icon { width: 24px; height: 24px; display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+.fx-icon img { width: 24px; height: 24px; object-fit: contain; border-radius: 4px; }
+.fx-title { flex: 1; min-width: 0; }
+.fx-count { color: var(--muted); font-weight: 400; font-size: 13px; }
+.caret {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 7px solid var(--muted);
+  transition: transform 0.15s;
+}
+.fx-card.closed .caret { transform: rotate(180deg); }
+.fx-card.closed .fx-body { display: none; }
+.fx-note { margin: 0; padding: 10px 16px 0; color: var(--muted); font-size: 12px; }
+
+.fx-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 28px 76px 28px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+.fx-head + .fx-body > .fx-row:first-child { border-top: 0; }
+.fx-row:hover { background: rgba(255, 255, 255, 0.02); }
+.fx-team { font-weight: 500; overflow-wrap: break-word; line-height: 1.25; }
+.fx-team.home { text-align: right; }
+.fx-team small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+.fx-score {
+  text-align: center;
+  font-weight: 700;
+  font-size: 17px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.fx-score small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
+.fx-row.upcoming .fx-score { color: var(--muted); font-size: 13px; font-weight: 500; }
+.fx-right { text-align: right; color: var(--muted); font-size: 12px; }
+.pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.fx-showall {
+  width: 100%;
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+.fx-showall:hover { color: var(--text); }
+
+.ci { width: 24px; height: 24px; object-fit: contain; justify-self: center; }
+.ci-fallback {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.progress { margin-bottom: 16px; }
+.progress-label { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+.progress-bar { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.progress-bar span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* ---------- home: what's new ---------- */
+.pulse { display: grid; gap: 10px; margin-bottom: 8px; }
+.pulse-latest {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.pulse-label { padding: 10px 14px 0; color: var(--muted); font-size: 12px; }
+.pulse-latest .fx-row { border-top: 0; }
+.pulse-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.pulse-value { margin-top: 4px; font-weight: 600; }
+.pulse-value .ci { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; font-size: 10px; }
+.pulse-value small { display: block; color: var(--muted); font-weight: 400; }
+.pulse-value .form { margin-left: 4px; }
+
 /* ---------- phones ---------- */
 @media (max-width: 560px) {
   .hide-sm { display: none; }
@@ -342,4 +451,15 @@ details summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
   .bracket { grid-template-columns: 1fr; }
   .profile { flex-wrap: wrap; }
   .profile-elo { text-align: left; width: 100%; }
+  .fx-row {
+    grid-template-columns: minmax(0, 1fr) 20px 52px 20px minmax(0, 1fr) 40px;
+    gap: 6px;
+    padding: 10px 8px;
+    font-size: 14px;
+  }
+  .fx-status { display: none; }  /* the score and date already show it's finished */
+  .fx-row .ci { width: 20px; height: 20px; }
+  .fx-score { font-size: 15px; }
+  .pill { padding: 2px 6px; font-size: 10px; }
+  .fx-right { font-size: 11px; }
 }

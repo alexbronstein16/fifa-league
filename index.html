@@ -6,7 +6,17 @@
   <title>FIFA League</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="img/logo.png">
-  <link rel="apple-touch-icon" href="img/logo.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#171a21">
+  <meta name="apple-mobile-web-app-title" content="FIFA League">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FIFA League">
+  <meta property="og:title" content="FIFA League">
+  <meta property="og:description" content="Standings, fixtures, playoffs and Elo for our FIFA league.">
+  <meta property="og:url" content="https://alexbronstein16.github.io/fifa-league/">
+  <meta property="og:image" content="https://alexbronstein16.github.io/fifa-league/img/icon-512.png">
+  <meta name="twitter:card" content="summary">
 </head>
 <body>
   <nav id="nav"></nav>
@@ -14,6 +24,11 @@
 
   <main>
     <h1 id="league-name">FIFA League</h1>
+
+    <section id="pulse" class="pulse" hidden>
+      <div class="pulse-latest" id="latest"></div>
+      <div class="pulse-tiles" id="pulse-tiles"></div>
+    </section>
 
     <h2>Teams</h2>
     <div class="team-grid" id="teams">Loading…</div>
@@ -46,8 +61,10 @@
   </main>
 
   <script type="module">
-    import { getTeams } from "./js/db.js";
+    import { getTeams, getAllTeams, getAllMatches } from "./js/db.js";
     import { LEAGUE } from "./js/config.js";
+    import { computeElo } from "./js/elo.js";
+    import { matchRow, playerLink, crestIcon, shortDate } from "./js/ui.js";
 
     document.getElementById("league-name").textContent = LEAGUE.name;
 
@@ -69,6 +86,74 @@
     } catch (e) {
       grid.textContent = `Couldn't load teams: ${e.message}`;
       console.error(e);
+    }
+
+    // ---------- what's new: latest result, mover, streak, upset ----------
+    try {
+      const [allTeams, matches] = await Promise.all([getAllTeams(), getAllMatches()]);
+      if (matches.length) {
+        const byId = new Map(allTeams.map(t => [t.id, t]));
+        const team = id => byId.get(id);
+        const { history } = computeElo(allTeams, matches, LEAGUE.elo);
+        const tiles = [];
+        const tile = (label, html) => tiles.push(`<div class="tile"><small>${label}</small><div class="pulse-value">${html}</div></div>`);
+
+        // latest result
+        const last = matches.at(-1);
+        const stageName = { league: "League", playoff: "Playoffs", friendly: "Friendly" }[last.stage];
+        document.getElementById("latest").innerHTML =
+          `<div class="pulse-label">Latest result · ${stageName}</div>${matchRow(last, team)}`;
+
+        // biggest Elo climber over the last 7 days
+        const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+        const change = new Map();
+        matches.forEach((m, i) => {
+          if (new Date(m.played_at).getTime() < weekAgo) return;
+          const d = history[i].delta;
+          change.set(m.home_team_id, (change.get(m.home_team_id) ?? 0) + d);
+          change.set(m.away_team_id, (change.get(m.away_team_id) ?? 0) - d);
+        });
+        const [climberId, climb] = [...change].sort((a, b) => b[1] - a[1])[0] ?? [];
+        if (climb >= 1 && team(climberId)) {
+          tile("Climber of the week", `${crestIcon(team(climberId))}${playerLink(team(climberId))} <span class="up">+${Math.round(climb)}</span>`);
+        }
+
+        // hottest current win streak (any game type), at least 2
+        const results = new Map();
+        for (const m of matches) {
+          const h = m.home_goals > m.away_goals ? "W" : m.home_goals < m.away_goals ? "L" : "D";
+          const a = h === "W" ? "L" : h === "L" ? "W" : "D";
+          results.set(m.home_team_id, [...(results.get(m.home_team_id) ?? []), h]);
+          results.set(m.away_team_id, [...(results.get(m.away_team_id) ?? []), a]);
+        }
+        let hot = null;
+        for (const [id, rs] of results) {
+          let n = 0;
+          for (let i = rs.length - 1; i >= 0 && rs[i] === "W"; i--) n++;
+          if (n >= 2 && team(id) && (!hot || n > hot.n)) hot = { id, n };
+        }
+        if (hot) tile("On fire", `${crestIcon(team(hot.id))}${playerLink(team(hot.id))} <span class="form W">W</span>×${hot.n}`);
+
+        // latest upset: the winner had under a 30% pre-game chance
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const m = matches[i];
+          if (m.home_goals === m.away_goals) continue;
+          const homeWon = m.home_goals > m.away_goals;
+          const winnerChance = homeWon ? history[i].homeExpected : 1 - history[i].homeExpected;
+          if (winnerChance >= 0.3) continue;
+          const w = team(homeWon ? m.home_team_id : m.away_team_id);
+          const l = team(homeWon ? m.away_team_id : m.home_team_id);
+          if (!w || !l) continue;
+          tile("Latest upset", `${playerLink(w)} beat ${playerLink(l)}
+            <small>${m.home_goals}–${m.away_goals} · ${Math.round(winnerChance * 100)}% chance · ${shortDate(m.played_at)}</small>`);
+          break;
+        }
+
+        document.getElementById("pulse-tiles").innerHTML = tiles.join("");
+        document.getElementById("pulse").hidden = false;
+      }
+    } catch (e) {
+      console.error(e);  // the strip is extra; the rest of the page still works
     }
   </script>
 </body>
