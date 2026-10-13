@@ -43,20 +43,25 @@ export const shortDate = iso => new Date(iso).toLocaleDateString(undefined, { mo
 // One FotMob-style match row. `team` looks up a team object by id.
 // Pass a match from the database, or { home_team_id, away_team_id } with no
 // goals for a game still to be played.
-export function matchRow(m, team, { right = "" } = {}) {
+//   right:  replaces the date column (e.g. "×2" for games still to play)
+//   status: replaces the FT pill (e.g. a W/D/L badge on a player's page)
+//   elo:    Elo change shown under the date, e.g. "+7" or "±7"
+export function matchRow(m, team, { right = "", status = "", elo = null } = {}) {
   const home = team(m.home_team_id), away = team(m.away_team_id);
   const played = m.home_goals != null;
   const pens = played && m.home_pens != null;
-  const status = !played ? "" : pens ? "Pens" : "FT";
-  const right_ = right || (played ? shortDate(m.played_at) : "");
+  const pill = !played ? "" : pens ? "Pens" : "FT";
+  const statusHtml = status || (pill ? `<span class="pill">${pill}</span>` : "");
+  const eloHtml = elo == null ? "" : `<small class="fx-elo ${elo.cls ?? ""}">${elo.text}</small>`;
+  const right_ = (right || (played ? shortDate(m.played_at) : "")) + eloHtml;
   const side = (t, club, cls) => `
     <span class="fx-team ${cls}">
       ${playerLink(t)}
       ${club ? `<small>${esc(club)}</small>` : ""}
     </span>`;
   return `
-    <div class="fx-row${played ? "" : " upcoming"}">
-      <span class="fx-status">${status ? `<span class="pill">${status}</span>` : ""}</span>
+    <div class="fx-row${played ? "" : " upcoming"}${status ? " with-result" : ""}">
+      <span class="fx-status">${statusHtml}</span>
       ${side(home, m.home_club, "home")}
       ${crestIcon(home)}
       <span class="fx-score">
