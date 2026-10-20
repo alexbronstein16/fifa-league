@@ -36,6 +36,10 @@
     <h2>Fun stats</h2>
     <div class="awards" id="fun"></div>
 
+    <h2>Player superlatives</h2>
+    <p class="note">Everyone's best finish across the awards and fun stats.</p>
+    <div class="supers" id="supers"></div>
+
     <h2 id="board-title">Leaderboard</h2>
     <div class="table-wrap" id="board-wrap">
       <table>
@@ -69,33 +73,36 @@
     import { computeElo } from "./js/elo.js";
     import { computeStandings } from "./js/standings.js";
     import { buildBracket } from "./js/bracket.js";
-    import { entriesFor, computeAwards, computeShame, computeFun, playerTable, bestGuest, clubTable } from "./js/stats.js";
+    import { entriesFor, computeStats, superlatives, playerTable, bestGuests, clubTable } from "./js/stats.js";
     import { LEAGUE } from "./js/config.js";
     import { esc, crestIcon, playerLink } from "./js/ui.js";
 
     const $ = id => document.getElementById(id);
-    const ICON = { champion: "🏆", leader: "🥇", wins: "✅", boot: "⚽", wall: "🧤", pct: "🎯", big: "💥",
-                   upset: "😱", streak: "🔥", improved: "📈", active: "🎮", guest: "🌟",
-                   spoon: "🥄", leaky: "🕳️", cold: "🥶", blank: "😶", drop: "📉", heavy: "🫠", choke: "🤡",
-                   fest: "🎆", draws: "🤝", cs: "🧱", bogey: "👻", attack: "🚀" };
     const signed = n => (n > 0 ? "+" : "") + n;
+    const MEDALS = ["🥇", "🥈", "🥉"];
+    const ORDINAL = ["1st", "2nd", "3rd"];
     let view = new URLSearchParams(location.search).get("view") === "friendlies" ? "friendlies" : "league";
     let data = null;
 
-    function awardTile(a, team) {
+    // "value detail [opponent]", e.g. "4–1 vs Sam" or "12 goals in 8 games"
+    function line(item, team) {
+      return `<b>${esc(item.value)}</b>${item.detail ? ` ${esc(item.detail)}` : ""}${
+        item.other ? ` ${playerLink(team(item.other))}` : ""}`;
+    }
+
+    // one tile: the leader in full, then 2nd and 3rd underneath
+    function tile(s, team) {
+      const [first, ...rest] = s.list;
       return `
         <div class="award">
-          <span class="award-icon">${ICON[a.key] ?? "⭐"}</span>
+          <span class="award-icon">${s.icon}</span>
           <div class="award-body">
-            <small>${a.label}</small>
-            <div class="award-who">${crestIcon(team(a.teamId))}${playerLink(team(a.teamId))}</div>
-            <div class="award-detail">${
-              a.key === "upset" ? `beat ${playerLink(team(a.other))} · <b>${esc(a.value)}</b>`
-              : a.key === "choke" ? `lost to ${playerLink(team(a.other))} · <b>${esc(a.value)}</b>`
-              : a.key === "fest" ? `<b>${esc(a.value)}</b> vs ${playerLink(team(a.other))} · ${esc(a.detail)}`
-              : a.key === "bogey" ? `<b>${esc(a.value)}</b> vs ${playerLink(team(a.other))} · ${esc(a.detail)}`
-              : a.other ? `<b>${esc(a.value)}</b> ${esc(a.detail)} ${playerLink(team(a.other))}`
-              : `<b>${esc(a.value)}</b>${a.detail ? ` ${esc(a.detail)}` : ""}`}</div>
+            <small>${esc(s.label)}</small>
+            <div class="award-who">${crestIcon(team(first.teamId))}${playerLink(team(first.teamId))}</div>
+            <div class="award-detail">${line(first, team)}</div>
+            ${rest.length ? `<ol class="podium">${rest.map((it, i) => `
+              <li><span class="rank">${i + 2}</span><span>${crestIcon(team(it.teamId))}${playerLink(team(it.teamId))}
+                · <b>${esc(it.value)}</b>${it.other ? ` vs ${playerLink(team(it.other))}` : ""}</span></li>`).join("")}</ol>` : ""}
           </div>
         </div>`;
     }
@@ -111,24 +118,33 @@
       $("views").innerHTML = [["league", `League · Season ${LEAGUE.season}`], ["friendlies", "Friendlies"]]
         .map(([k, label]) => `<button class="chip" data-view="${k}" aria-pressed="${k === view}">${label}</button>`).join("");
 
-      let entries, awards, note, eligible;
+      let entries, stats, note, eligible, people;
       if (view === "league") {
-        // league + playoff games this season, league players only
+        // league + playoff games this season, league players only (forfeits weren't really played)
         entries = entriesFor(matches, m => m.season === LEAGUE.season && m.stage !== "friendly" && !m.forfeit);
         eligible = leagueIds;
+        stats = computeStats(entries, history, { eligible, eloLabel: "this season" })
+          .filter(s => s.key !== "wins" && s.key !== "active" && s.key !== "spoon");  // the table covers these
+
         // the table and bracket use every result, forfeits included
         const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
         const standings = computeStandings(leagueTeams, season, LEAGUE.points);
         const bracket = buildBracket(standings, season, LEAGUE.playoffSpots);
-        awards = [];
+        const started = season.some(m => m.stage === "league");
         if (bracket.champion) {
-          awards.push({ key: "champion", label: "Champion", teamId: bracket.champion, value: "Won the playoffs", detail: "" });
-        } else if (season.some(m => m.stage === "league")) {
-          const top = standings[0];
-          awards.push({ key: "leader", label: "Top of the table", teamId: top.team.id, value: `${top.pts} pts`, detail: `from ${top.p} games` });
+          stats.unshift({ group: "award", key: "champion", icon: "🏆", label: "Champion",
+            list: [{ teamId: bracket.champion, value: "Won the playoffs", detail: "" }] });
+        } else if (started) {
+          stats.unshift({ group: "award", key: "leader", icon: "🥇", label: "Top of the table",
+            list: standings.slice(0, 3).map(r => ({ teamId: r.team.id, value: `${r.pts} pts`, detail: `from ${r.p} games` })) });
         }
-        awards.push(...computeAwards(entries, history, { eligible, improvedLabel: "this season" })
-          .filter(a => a.key !== "active" && a.key !== "wins"));  // the table already shows these
+        // wooden spoon = bottom of the table, worst first
+        if (started && standings.length > 1) {
+          stats.push({ group: "shame", key: "spoon", icon: "🥄", label: "Wooden spoon",
+            list: standings.slice(-3).reverse().map((r, i) => ({ teamId: r.team.id, value: `${r.pts} pts`,
+              detail: i === 0 ? `last place after ${r.p} games` : "" })) });
+        }
+        people = leagueIds;
         note = bracket.champion
           ? `Final results for Season ${LEAGUE.season}: league and playoff games.`
           : `Season ${LEAGUE.season} so far: league and playoff games. Updates after every game until the playoffs finish.`;
@@ -136,36 +152,43 @@
         // every friendly ever, everyone including guests
         entries = entriesFor(matches, m => m.stage === "friendly");
         eligible = null;
-        awards = computeAwards(entries, history, { improvedLabel: "from friendlies" });
+        stats = computeStats(entries, history, { eloLabel: "from friendlies" });
         const guestIds = new Set(teams.filter(t => !t.in_league).map(t => t.id));
-        const played = new Set(entries.flatMap(([m]) => [m.home_team_id, m.away_team_id]));
-        const guest = bestGuest(ratings, guestIds, played);
-        if (guest) awards.push(guest);
+        people = new Set(entries.flatMap(([m]) => [m.home_team_id, m.away_team_id]));
+        const guests = bestGuests(ratings, guestIds, people);
+        if (guests) stats.push(guests);
         note = "All friendlies, all seasons, guests included. Friendlies move Elo at half weight.";
       }
 
+      // drop anyone who's been deleted, and tiles left empty by that
+      stats = stats.map(s => ({ ...s, list: s.list.filter(it => team(it.teamId) && (!it.other || team(it.other))) }))
+        .filter(s => s.list.length);
+      const tiles = (group, empty) => stats.filter(s => s.group === group).map(s => tile(s, team)).join("")
+        || `<p class="note">${empty}</p>`;
+
       $("awards-title").textContent = view === "league" ? `Season ${LEAGUE.season} awards` : "Friendly awards";
       $("awards-note").textContent = note;
-      $("awards").innerHTML = awards.filter(a => team(a.teamId)).map(a => awardTile(a, team)).join("")
-        || `<p class="note">Awards appear once games are played.</p>`;
+      $("awards").innerHTML = tiles("award", "Awards appear once games are played.");
+      $("shame").innerHTML = tiles("shame", "Nobody to shame yet.");
+      $("fun").innerHTML = tiles("fun", "Fun stats appear once a few games are played.");
 
-      // ---- hall of shame + fun ----
-      let shame = computeShame(entries, history, { eligible });
-      if (view === "league") {
-        // in the league, the wooden spoon is last place in the table
-        const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
-        const table = computeStandings(leagueTeams, season, LEAGUE.points);
-        const last = table.at(-1);
-        shame = shame.filter(a => a.key !== "spoon");
-        if (last && season.some(m => m.stage === "league") && table.length > 1) {
-          shame.unshift({ key: "spoon", label: "Wooden spoon", teamId: last.team.id,
-            value: `${last.pts} pts`, detail: `last place after ${last.p} games` });
-        }
-      }
-      const tiles = (list, empty) => list.filter(a => team(a.teamId)).map(a => awardTile(a, team)).join("")
-        || `<p class="note">${empty}</p>`;
-      $("shame").innerHTML = tiles(shame, "Nobody to shame yet.");
-      $("fun").innerHTML = tiles(computeFun(entries, history, { eligible }), "Fun stats appear once a few games are played.");
+      // ---- player superlatives: everyone's best finish ----
+      const played = new Set(entries.flatMap(([m]) => [m.home_team_id, m.away_team_id]));
+      const supers = superlatives(stats, [...people].filter(id => team(id) && played.has(id)));
+      $("supers").innerHTML = supers.map(p => {
+        const t = team(p.id);
+        const what = p.stat
+          ? `${ORDINAL[p.rank]} · ${p.stat.label} · ${p.item.value}`
+          : "No podium finish yet";
+        return `
+          <div class="super">
+            <span class="medal">${p.stat ? MEDALS[p.rank] : "·"}</span>
+            <div class="super-body">
+              <div>${crestIcon(t)}${playerLink(t)}</div>
+              <small>${p.stat ? `${p.stat.icon} ` : ""}${esc(what)}</small>
+            </div>
+          </div>`;
+      }).join("") || `<p class="note">Appears once games are played.</p>`;
 
       // ---- leaderboard ----
       const rows = playerTable(entries, history)
