@@ -38,7 +38,7 @@ export const LEAGUE = {
   name: "Curtis Champions League",
   season: 1,
   points: { win: 3, draw: 1, loss: 0 },
-  playoffSpots: 4,
+  playoffSpots: 8,
   legs: 2,        // times each pair plays in the league (2 = home and away)
   elo: {
     start: 1500, k: 32, kPlayoff: 40, kFriendly: 16,
