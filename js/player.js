@@ -11,6 +11,7 @@ function fromPerspective(m, id) {
     gf, ga,
     pf: home ? m.home_pens : m.away_pens,
     pa: home ? m.away_pens : m.home_pens,
+    forfeit: !!m.forfeit,
     club: home ? m.home_club : m.away_club,
     oppClub: home ? m.away_club : m.home_club,
     result: gf > ga ? "W" : gf < ga ? "L" : "D",

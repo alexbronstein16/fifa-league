@@ -396,6 +396,8 @@ details summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
 }
 .fx-score small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
 .fx-row.upcoming .fx-score { color: var(--muted); font-size: 13px; font-weight: 500; }
+.fx-row.forfeit .fx-score { color: var(--muted); font-style: italic; }
+.fx-row.forfeit .pill { background: #3a2f12; color: #f5d48a; }
 .fx-right { text-align: right; color: var(--muted); font-size: 12px; }
 .fx-elo { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
 .fx-elo.up { color: var(--win); }
@@ -521,6 +523,8 @@ a.h2h-link:hover { color: var(--text); }
 .btn-row { display: flex; gap: 8px; }
 .btn-row button { flex: 1; }
 #match-form.editing { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+#match-form.is-forfeit input:disabled { opacity: 0.45; }
+.pill.ff { background: #3a2f12; color: #f5d48a; margin-left: 4px; }
 .crest-pick { display: flex; align-items: center; gap: 12px; }
 .crest-pick input[type="file"] { flex: 1; min-width: 0; padding: 8px; }
 .crest-preview { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0;

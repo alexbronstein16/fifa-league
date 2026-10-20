@@ -42,6 +42,14 @@
           </select>
         </label>
 
+        <label id="ff-row">Result
+          <select id="m-forfeit">
+            <option value="">Played</option>
+            <option value="home">Home team forfeited (away wins 3–0)</option>
+            <option value="away">Away team forfeited (home wins 3–0)</option>
+          </select>
+        </label>
+
         <div class="row">
           <label>Home <select id="home" required></select></label>
           <label>Goals <input type="number" id="home-goals" min="0" required></label>
@@ -167,7 +175,8 @@
     const scoreline = m => `
       ${esc(name(m.home_team_id))}${club(m.home_club)} <b>${m.home_goals}–${m.away_goals}</b>
       ${esc(name(m.away_team_id))}${club(m.away_club)}
-      ${m.home_pens != null ? `(${m.home_pens}–${m.away_pens} pens)` : ""}`;
+      ${m.home_pens != null ? `(${m.home_pens}–${m.away_pens} pens)` : ""}
+      ${m.forfeit ? `<span class="pill ff">forfeit</span>` : ""}`;
 
     // ---------- which view ----------
     async function render() {
@@ -264,7 +273,27 @@
       else if (list.length > 1 && $("away").value === $("home").value) $("away").selectedIndex = 1;
       $("pens-row").classList.toggle("hidden", stage !== "playoff");
     }
-    $("stage").addEventListener("change", fillPlayers);
+    $("stage").addEventListener("change", () => { fillPlayers(); syncForfeit(); });
+
+    // forfeits: no goals, clubs or penalties to enter; the score is set to 3-0
+    const scoreFields = ["home-goals", "away-goals", "home-club", "away-club", "home-pens", "away-pens"];
+    function syncForfeit() {
+      const friendly = $("stage").value === "friendly";
+      $("ff-row").classList.toggle("hidden", friendly);
+      if (friendly) $("m-forfeit").value = "";
+      const ff = $("m-forfeit").value;
+      for (const id of scoreFields) $(id).disabled = !!ff;
+      if (ff) {
+        $("home-goals").value = ff === "away" ? 3 : 0;
+        $("away-goals").value = ff === "home" ? 3 : 0;
+        for (const id of ["home-club", "away-club", "home-pens", "away-pens"]) $(id).value = "";
+      }
+      $("match-form").classList.toggle("is-forfeit", !!ff);
+    }
+    $("m-forfeit").addEventListener("change", () => {
+      if (!$("m-forfeit").value) { $("home-goals").value = ""; $("away-goals").value = ""; }
+      syncForfeit();
+    });
 
     // make sure a team is in a dropdown even if it's inactive or the wrong type
     const ensureOption = (sel, id) => {
@@ -275,6 +304,8 @@
     };
 
     function clearMatchForm() {
+      $("m-forfeit").value = "";
+      syncForfeit();
       for (const id of ["home-goals", "away-goals", "home-pens", "away-pens", "home-club", "away-club"]) $(id).value = "";
       $("m-date").value = today();
     }
@@ -292,6 +323,8 @@
       $("home-club").value = m.home_club ?? "";
       $("away-club").value = m.away_club ?? "";
       $("m-date").value = ymd(m.played_at);
+      $("m-forfeit").value = !m.forfeit ? "" : m.home_goals > m.away_goals ? "away" : "home";
+      syncForfeit();
       $("match-title").textContent = "Edit result";
       $("match-save").textContent = "Update result";
       $("match-cancel").classList.remove("hidden");
@@ -322,15 +355,22 @@
 
       if (home === away) { msg.textContent = "Pick two different players."; return; }
 
+      const ff = stage === "friendly" ? "" : $("m-forfeit").value;
       const match = {
         stage, home_team_id: home, away_team_id: away,
         home_goals: hg, away_goals: ag,
         home_pens: null, away_pens: null,
         home_club: cleanClub($("home-club").value),
         away_club: cleanClub($("away-club").value),
+        forfeit: !!ff,
       };
+      if (ff) {
+        match.home_goals = ff === "away" ? 3 : 0;
+        match.away_goals = ff === "home" ? 3 : 0;
+        match.home_club = match.away_club = null;
+      }
 
-      if (stage === "playoff" && hg === ag) {
+      if (stage === "playoff" && !ff && hg === ag) {
         const hp = $("home-pens").value, ap = $("away-pens").value;
         if (hp === "" || ap === "" || hp === ap) {
           msg.textContent = "Playoff draws need a penalty winner.";
@@ -520,6 +560,7 @@
       }
     });
 
+    syncForfeit();
     render();
   </script>
 </body>

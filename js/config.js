@@ -45,5 +45,8 @@ export const LEAGUE = {
     // new players' ratings move faster until they've played this many games,
     // so they reach their real level quickly (their opponents move normally)
     provisionalGames: 10, provisionalFactor: 2,
+    // forfeits (3-0, not actually played) move Elo this fraction of a league game,
+    // ignore the goal margin, and don't count toward a new player's first games
+    forfeitFactor: 0.25,
   },
 };

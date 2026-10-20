@@ -75,7 +75,8 @@
 
       const all = matches.filter(m =>
         (m.home_team_id === a && m.away_team_id === b) || (m.home_team_id === b && m.away_team_id === a));
-      const games = all.filter(m => stage === "all" || m.stage === stage);
+      const listed = all.filter(m => stage === "all" || m.stage === stage);
+      const games = listed.filter(m => !m.forfeit);  // the comparison only counts games actually played
       const ra = ratings.get(a) ?? LEAGUE.elo.start, rb = ratings.get(b) ?? LEAGUE.elo.start;
       const pa = Math.round(expected(ra, rb) * 100);
       const sa = side(a, games), sb = side(b, games);
@@ -121,7 +122,7 @@
 
         <div class="filters">${chips}</div>
 
-        ${n ? `
+        ${n || listed.length ? `
           <div class="cmp">
             ${row("Wins", sa.w, sb.w)}
             ${row("Goals", sa.gf, sb.gf)}
@@ -132,7 +133,7 @@
           </div>
 
           <h2>Meetings</h2>
-          <div class="fx-card">${[...games].reverse().map(m => matchRow(m, team)).join("")}</div>`
+          <div class="fx-card">${[...listed].reverse().map(m => matchRow(m, team)).join("")}</div>`
         : `<p class="note">They haven't played${stage === "all" ? "" : " in this category"} yet.</p>`}`;
     }
 

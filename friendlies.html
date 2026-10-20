@@ -73,6 +73,7 @@
 
         const h = stats.get(m.home_team_id), a = stats.get(m.away_team_id);
         if (!h || !a) return;            // skip players who were deactivated
+        if (m.forfeit) { h.last = dh; a.last = da; return; }  // Elo moved, but it wasn't a game
         h.gp++; a.gp++;
         h.last = dh; a.last = da;
         if (m.home_goals > m.away_goals)      { h.w++; a.l++; }

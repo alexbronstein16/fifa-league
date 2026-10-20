@@ -114,9 +114,10 @@
       let entries, awards, note, eligible;
       if (view === "league") {
         // league + playoff games this season, league players only
-        entries = entriesFor(matches, m => m.season === LEAGUE.season && m.stage !== "friendly");
+        entries = entriesFor(matches, m => m.season === LEAGUE.season && m.stage !== "friendly" && !m.forfeit);
         eligible = leagueIds;
-        const season = entries.map(([m]) => m);
+        // the table and bracket use every result, forfeits included
+        const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
         const standings = computeStandings(leagueTeams, season, LEAGUE.points);
         const bracket = buildBracket(standings, season, LEAGUE.playoffSpots);
         awards = [];
@@ -152,7 +153,7 @@
       let shame = computeShame(entries, history, { eligible });
       if (view === "league") {
         // in the league, the wooden spoon is last place in the table
-        const season = entries.map(([m]) => m);
+        const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
         const table = computeStandings(leagueTeams, season, LEAGUE.points);
         const last = table.at(-1);
         shame = shame.filter(a => a.key !== "spoon");

@@ -89,6 +89,8 @@
         "Ties in the table are broken by goal difference, then goals scored.",
         playoff,
         "Playoff games are one game each. A draw goes to a penalty shootout.",
+        "A league game that isn't played counts as a 3–0 forfeit win for the other team. Forfeits count in the table, "
+          + "move Elo much less than a real game, and are left out of all other stats.",
       ].map(t => `<li>${t}</li>`).join("");
     }
 
@@ -141,6 +143,7 @@
         // hottest current win streak (any game type), at least 2
         const results = new Map();
         for (const m of matches) {
+          if (m.forfeit) continue;
           const h = m.home_goals > m.away_goals ? "W" : m.home_goals < m.away_goals ? "L" : "D";
           const a = h === "W" ? "L" : h === "L" ? "W" : "D";
           results.set(m.home_team_id, [...(results.get(m.home_team_id) ?? []), h]);
@@ -157,7 +160,7 @@
         // latest upset: the winner had under a 30% pre-game chance
         for (let i = matches.length - 1; i >= 0; i--) {
           const m = matches[i];
-          if (m.home_goals === m.away_goals) continue;
+          if (m.forfeit || m.home_goals === m.away_goals) continue;
           const homeWon = m.home_goals > m.away_goals;
           const winnerChance = homeWon ? history[i].homeExpected : 1 - history[i].homeExpected;
           if (winnerChance >= 0.3) continue;

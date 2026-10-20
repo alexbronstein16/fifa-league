@@ -33,17 +33,20 @@ export function computeElo(teams, matches, cfg) {
     const result = m.home_goals > m.away_goals ? 1
                  : m.home_goals < m.away_goals ? 0 : 0.5;
 
-    const k = { league: cfg.k, playoff: cfg.kPlayoff, friendly: cfg.kFriendly }[m.stage] ?? cfg.k;
-    const g = marginMultiplier(Math.abs(m.home_goals - m.away_goals));
+    const kStage = { league: cfg.k, playoff: cfg.kPlayoff, friendly: cfg.kFriendly }[m.stage] ?? cfg.k;
+    const k = m.forfeit ? kStage * (cfg.forfeitFactor ?? 0.25) : kStage;
+    const g = m.forfeit ? 1 : marginMultiplier(Math.abs(m.home_goals - m.away_goals));
     const exp = expected(rh, ra);
     const base = k * g * (result - exp);
-    const deltaHome = base * boost(h);
-    const deltaAway = -base * boost(a);
+    const deltaHome = base * (m.forfeit ? 1 : boost(h));
+    const deltaAway = -base * (m.forfeit ? 1 : boost(a));
 
     ratings.set(h, rh + deltaHome);
     ratings.set(a, ra + deltaAway);
-    played.set(h, (played.get(h) ?? 0) + 1);
-    played.set(a, (played.get(a) ?? 0) + 1);
+    if (!m.forfeit) {
+      played.set(h, (played.get(h) ?? 0) + 1);
+      played.set(a, (played.get(a) ?? 0) + 1);
+    }
     // homeExpected: the home player's pre-game win chance, used to spot upsets
     history.push({ matchId: m.id, playedAt: m.played_at,
                    [h]: rh + deltaHome, [a]: ra + deltaAway,

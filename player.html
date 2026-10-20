@@ -147,7 +147,9 @@
 
     // ---------- everything that depends on the filter ----------
     function render() {
-      const games = allGames.filter(g => stage === "all" || g.stage === stage);
+      const shown = allGames.filter(g => stage === "all" || g.stage === stage);
+      const games = shown.filter(g => !g.forfeit);  // stats only count games actually played
+      const forfeits = shown.length - games.length;
       const s = summarize(games);
       const h2h = headToHead(games);
       const clubs = clubStats(games);
@@ -155,7 +157,7 @@
       const fave = clubs[0];
       const best = clubs.filter(c => c.gp >= 3).sort((a, b) => b.w / b.gp - a.w / a.gp)[0];
 
-      if (!s.gp) {
+      if (!s.gp && !shown.length) {
         $("tiles").innerHTML = `<p class="note">No games in this category yet.</p>`;
         $("insights").innerHTML = "";
         $("h2h").innerHTML = "";
@@ -171,12 +173,12 @@
       const tile = (label, big, sub = "") =>
         `<div class="tile"><small>${label}</small><div class="big">${big}</div>${sub ? `<small>${sub}</small>` : ""}</div>`;
       $("tiles").innerHTML = [
-        tile("Record", `${s.w}-${s.d}-${s.l}`, `${s.gp} games`),
+        tile("Record", `${s.w}-${s.d}-${s.l}`, `${s.gp} games${forfeits ? ` · ${forfeits} forfeit${forfeits > 1 ? "s" : ""} not counted` : ""}`),
         tile("Win %", pct(s.winPct)),
         tile("Goals for", s.gf, `${one(s.avgFor)} per game`),
         tile("Goals against", s.ga, `${one(s.avgAgainst)} per game`),
         tile("Goal diff", signed(s.gd)),
-        tile("Clean sheets", s.cleanSheets, pct(s.cleanSheets / s.gp)),
+        tile("Clean sheets", s.cleanSheets, s.gp ? pct(s.cleanSheets / s.gp) : "–"),
         tile("Streak", s.streak),
         tile("Form", s.form.map(f => `<span class="form ${f}">${f}</span>`).join("")),
       ].join("");
@@ -220,7 +222,7 @@
         </tr>`).join("");
 
       // match history: newest first, last 5 visible, the rest behind "Show all"
-      const newest = [...games].reverse();
+      const newest = [...shown].reverse();  // history lists forfeits too, tagged FF
       const row = g => {
         const change = Math.round(g.eloChange);
         return matchRow(matchById.get(g.id), team, {

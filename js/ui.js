@@ -50,7 +50,7 @@ export function matchRow(m, team, { right = "", status = "", elo = null } = {}) 
   const home = team(m.home_team_id), away = team(m.away_team_id);
   const played = m.home_goals != null;
   const pens = played && m.home_pens != null;
-  const pill = !played ? "" : pens ? "Pens" : "FT";
+  const pill = !played ? "" : m.forfeit ? "FF" : pens ? "Pens" : "FT";
   const statusHtml = status || (pill ? `<span class="pill">${pill}</span>` : "");
   const eloHtml = elo == null ? "" : `<small class="fx-elo ${elo.cls ?? ""}">${elo.text}</small>`;
   const right_ = (right || (played ? shortDate(m.played_at) : "")) + eloHtml;
@@ -60,7 +60,8 @@ export function matchRow(m, team, { right = "", status = "", elo = null } = {}) 
       ${club ? `<small>${esc(club)}</small>` : ""}
     </span>`;
   return `
-    <div class="fx-row${played ? "" : " upcoming"}${status ? " with-result" : ""}">
+    <div class="fx-row${played ? "" : " upcoming"}${status ? " with-result" : ""}${m.forfeit ? " forfeit" : ""}"
+         ${m.forfeit ? 'title="Forfeit: not played, counted as 3-0"' : ""}>
       <span class="fx-status">${statusHtml}</span>
       ${side(home, m.home_club, "home")}
       ${crestIcon(home)}
