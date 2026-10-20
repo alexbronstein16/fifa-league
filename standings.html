@@ -59,7 +59,7 @@
       const { ratings } = computeElo(teams, allMatches, LEAGUE.elo);
 
       tbody.innerHTML = table.map((r, i) => `
-        <tr class="${i === LEAGUE.playoffSpots - 1 ? "cutoff" : ""}">
+        <tr class="${i === LEAGUE.playoffSpots - 1 && i < table.length - 1 ? "cutoff" : ""}">
           <td>${i + 1}</td>
           <td class="left">${badge(r.team)}${playerLink(r.team)}</td>
           <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
@@ -73,7 +73,8 @@
 
       const played = matches.filter(m => m.stage === "league").length;
       document.getElementById("note").textContent =
-        `${played} league matches played. Top ${LEAGUE.playoffSpots} make the playoffs.`;
+        `${played} league matches played. ${LEAGUE.playoffSpots >= table.length
+          ? "Everyone makes the playoffs" : `Top ${LEAGUE.playoffSpots} make the playoffs`}.`;
     } catch (e) {
       tbody.innerHTML = `<tr><td colspan="12">Couldn't load standings: ${esc(e.message)}</td></tr>`;
       console.error(e);

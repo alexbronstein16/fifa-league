@@ -42,7 +42,7 @@
     try {
       const [teams, matches] = await Promise.all([getTeams(), getMatches()]);
       const standings = computeStandings(teams, matches, LEAGUE.points);
-      const bracket = buildBracket(standings, matches);
+      const bracket = buildBracket(standings, matches, LEAGUE.playoffSpots);
 
       const team = id => teams.find(t => t.id === id);
       const seedOf = id => bracket.seeds.indexOf(id) + 1;
@@ -71,11 +71,12 @@
           </div>`;
       };
 
+      $("bracket").style.setProperty("--rounds", bracket.rounds.length);
       $("bracket").innerHTML = bracket.rounds.map(r => `
         <div class="round">
           <h2>${r.name}</h2>
-          ${r.ties.map(tie => `
-            <div class="tie">${side(tie, tie.a)}${side(tie, tie.b)}</div>`).join("")}
+          <div class="ties">${r.ties.map(tie => `
+            <div class="tie">${side(tie, tie.a)}${side(tie, tie.b)}</div>`).join("")}</div>
         </div>`).join("");
 
       const champ = team(bracket.champion);
@@ -83,7 +84,7 @@
       $("status").innerHTML = champ
         ? `🏆 Champion: <b>${esc(champ.name)}</b>`
         : started ? "Playoffs in progress."
-        : "Projected bracket: seeded by the current standings.";
+        : `Projected bracket: top ${bracket.seeds.length} in the current standings.`;
     } catch (e) {
       $("bracket").textContent = `Couldn't load playoffs: ${e.message}`;
       console.error(e);

@@ -118,7 +118,7 @@
         eligible = leagueIds;
         const season = entries.map(([m]) => m);
         const standings = computeStandings(leagueTeams, season, LEAGUE.points);
-        const bracket = buildBracket(standings, season);
+        const bracket = buildBracket(standings, season, LEAGUE.playoffSpots);
         awards = [];
         if (bracket.champion) {
           awards.push({ key: "champion", label: "Champion", teamId: bracket.champion, value: "Won the playoffs", detail: "" });

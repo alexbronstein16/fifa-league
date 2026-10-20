@@ -75,11 +75,14 @@
       const p = LEAGUE.points;
       const spots = Math.min(LEAGUE.playoffSpots, n);
       const times = { 1: "once", 2: "twice", 3: "three times" }[legs] ?? `${legs} times`;
-      const playoff =
-        spots >= 4 ? "The top 4 make the playoffs: 1st vs 4th and 2nd vs 3rd in the semifinals, then a final."
-        : spots === 3 ? "The top 3 make the playoffs: 1st gets a bye to the final, 2nd plays 3rd in the semifinal."
-        : spots === 2 ? "The top 2 meet in a one-game final."
-        : "Playoffs start once there are at least 2 teams.";
+      let size = 2;
+      while (size < spots) size *= 2;
+      const firstRound = { 2: "a one-game final", 4: "semifinals", 8: "quarterfinals", 16: "a round of 16" }[size] ?? "a knockout";
+      const byes = size - spots;
+      const playoff = spots < 2
+        ? "Playoffs start once there are at least 2 teams."
+        : `${spots >= n ? "Everyone makes" : `The top ${spots} make`} the playoffs: a knockout starting with ${firstRound}, `
+          + `seeded so 1st plays the lowest seed${byes ? `. The top ${byes === 1 ? "seed gets a bye" : `${byes} seeds get byes`} into the next round` : ""}.`;
       return [
         `Everyone plays everyone ${times}${legs === 2 ? ", once home and once away" : ""}.`,
         `Win = ${p.win} points, draw = ${p.draw}, loss = ${p.loss}.`,

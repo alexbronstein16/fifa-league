@@ -230,12 +230,13 @@ details summary { cursor: pointer; color: var(--muted); padding: 8px 0; }
 /* ---------- playoff bracket ---------- */
 .bracket {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  align-items: center;
+  grid-template-columns: repeat(var(--rounds, 2), minmax(0, 1fr));
+  gap: 16px;
+  overflow-x: auto;
 }
-.round h2 { margin-top: 0; }
-.round { display: grid; gap: 16px; }
+.round h2 { margin-top: 0; font-size: 16px; }
+.round { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.ties { display: flex; flex-direction: column; justify-content: space-around; gap: 12px; }
 .tie {
   background: var(--panel);
   border: 1px solid var(--line);
