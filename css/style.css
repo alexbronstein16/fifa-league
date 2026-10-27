@@ -562,11 +562,21 @@ a.h2h-link:hover { color: var(--text); }
 .locked-list { margin-top: 12px; }
 .locked-list summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
 
+/* player page tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 16px; overflow-x: auto; }
+.tabs button { background: none; color: var(--muted); border: 0; border-bottom: 2px solid transparent;
+  border-radius: 0; padding: 8px 12px; font-weight: 500; white-space: nowrap; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tabs small { color: var(--muted); font-weight: 400; margin-left: 2px; }
+@media (max-width: 560px) {
+  .tabs button { flex: 1 0 auto; padding: 8px 6px; }
+  .tabs small { display: none; }
+}
+
 /* season card */
-.recap-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 16px; }
-.recap-actions button, .recap-actions a { font-size: 13px; padding: 6px 12px; }
-.recap-preview { margin: 0 0 16px; }
-.recap-preview img { width: 100%; max-width: 420px; display: block; border-radius: 12px; border: 1px solid var(--line); }
+.card-view img { width: 100%; max-width: 440px; display: block; border-radius: 14px; border: 1px solid var(--line); }
+.card-actions { display: flex; gap: 8px; margin-top: 10px; max-width: 440px; }
+.card-actions > * { flex: 1; text-align: center; padding: 10px 12px; }
 a.btn { display: inline-block; background: var(--panel); color: var(--text); border: 1px solid var(--line);
   border-radius: 8px; text-decoration: none; font-weight: 500; }
 
@@ -575,9 +585,7 @@ a.btn { display: inline-block; background: var(--panel); color: var(--text); bor
 .move.same { color: var(--muted); font-weight: 400; }
 .move.new { color: var(--accent); }
 
-/* records */
-.records { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
-.record .award-detail + .award-detail { margin-top: 2px; }
+/* achievements feed (stats page) */
 .feed { list-style: none; padding: 0; margin: 0; }
 .feed li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); min-width: 0; }
 .feed .badge-icon { font-size: 20px; }

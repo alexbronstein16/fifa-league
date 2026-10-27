@@ -88,9 +88,10 @@
       drawPower(teams, allMatches);
 
       const played = matches.filter(m => m.stage === "league").length;
-      document.getElementById("note").textContent =
+      document.getElementById("note").innerHTML =
         `${played} league matches played. ${LEAGUE.playoffSpots >= table.length
-          ? "Everyone makes the playoffs" : `Top ${LEAGUE.playoffSpots} make the playoffs`}.`;
+          ? "Everyone makes the playoffs" : `Top ${LEAGUE.playoffSpots} make the playoffs`}.` +
+        (played ? ` <a href="playoffs.html#odds-box">See playoff odds</a>` : "");
     } catch (e) {
       console.error(e);
       tbody.innerHTML = `<tr><td colspan="12">Couldn't load standings: ${esc(e.message)}</td></tr>`;

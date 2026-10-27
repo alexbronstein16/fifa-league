@@ -24,8 +24,22 @@
 
   <main>
     <div id="header">Loading…</div>
-    <div id="recap-box"></div>
 
+    <div class="tabs" id="tabs" role="tablist" hidden>
+      <button role="tab" data-tab="overview">Overview</button>
+      <button role="tab" data-tab="achievements">Achievements <small id="ach-count"></small></button>
+      <button role="tab" data-tab="card">Season card</button>
+    </div>
+
+    <section id="tab-achievements" hidden>
+      <div id="achievements"></div>
+    </section>
+
+    <section id="tab-card" hidden>
+      <div id="card-box"></div>
+    </section>
+
+    <section id="tab-overview">
     <div class="filters" id="filters"></div>
 
     <div class="tiles" id="tiles"></div>
@@ -35,9 +49,6 @@
 
     <h2>Elo over time <small class="note">all games</small></h2>
     <div id="elo"></div>
-
-    <h2>Achievements <small class="note" id="ach-count"></small></h2>
-    <div id="achievements"></div>
 
     <h2>Head to head</h2>
     <div class="table-wrap">
@@ -62,6 +73,7 @@
 
     <h2>Match history</h2>
     <div class="fx-card" id="history"></div>
+    </section>
   </main>
 
   <script type="module">
@@ -70,7 +82,7 @@
     import { playerGames, summarize, headToHead, clubStats } from "./js/player.js";
     import { computeAchievements, ACHIEVEMENTS, GROUP_NAMES } from "./js/achievements.js";
     import { computeStandings } from "./js/standings.js";
-    import { recapButton } from "./js/recap.js";
+    import { cardTab } from "./js/recap.js";
     import { LEAGUE } from "./js/config.js";
     import { esc, badge, playerLink, matchRow } from "./js/ui.js";
 
@@ -103,10 +115,16 @@
       const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
       allGames = playerGames(playerId, matches, history);
 
-      // this season's table: used for "vs top half / bottom half" and the season card
-      const leagueTeams = teams.filter(t => t.in_league);
+      // a season's final (or current) table: league players that season
+      const tableFor = n => {
+        const games = matches.filter(m => m.season === n && m.stage !== "friendly");
+        const ids = new Set(games.filter(m => m.stage === "league").flatMap(m => [m.home_team_id, m.away_team_id]));
+        const players = n === LEAGUE.season ? teams.filter(t => t.in_league) : teams.filter(t => ids.has(t.id));
+        return computeStandings(players, games, LEAGUE.points);
+      };
+      // this season's table: used for "vs top half / bottom half"
       const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
-      const table = computeStandings(leagueTeams, season, LEAGUE.points);
+      const table = tableFor(LEAGUE.season);
       if (season.some(m => m.stage === "league") && table.length >= 4) {
         const cut = Math.ceil(table.length / 2);
         halves = { top: new Set(table.slice(0, cut).map(r => r.team.id)),
@@ -115,12 +133,30 @@
       const ach = computeAchievements(teams, matches, history, LEAGUE);
 
       drawHeader(me, ratings, matches);
-      recapButton($("recap-box"), { me, team, games: allGames, table, ach, season: LEAGUE.season });
       drawFilters();
       drawElo(allGames);
       drawAchievements(ach);
       render();
+      cardOpts = { me, team, games: allGames, tableFor, ach, current: LEAGUE.season };
+      $("tabs").hidden = false;
+      showTab(location.hash.slice(1));
     }
+
+    // ---------- tabs: Overview / Achievements / Season card ----------
+    let cardOpts = null, cardDrawn = false;
+    function showTab(name) {
+      if (!["overview", "achievements", "card"].includes(name)) name = "overview";
+      for (const b of $("tabs").querySelectorAll("button")) b.setAttribute("aria-selected", b.dataset.tab === name);
+      for (const t of ["overview", "achievements", "card"]) $(`tab-${t}`).hidden = t !== name;
+      // the card is only drawn the first time its tab is opened
+      if (name === "card" && !cardDrawn && cardOpts) { cardDrawn = true; cardTab($("card-box"), cardOpts); }
+    }
+    $("tabs").addEventListener("click", e => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      window.history.replaceState(null, "", b.dataset.tab === "overview" ? location.pathname + location.search : `#${b.dataset.tab}`);
+      showTab(b.dataset.tab);
+    });
 
     // ---------- header ----------
     function drawHeader(me, ratings, matches) {
@@ -362,7 +398,7 @@
       const earned = ACHIEVEMENTS.filter(a => mine.has(a.key) && a.group !== "shame");
       const shame = ACHIEVEMENTS.filter(a => mine.has(a.key) && a.group === "shame");
       const locked = ACHIEVEMENTS.filter(a => !mine.has(a.key) && a.group !== "shame");
-      $("ach-count").textContent = `${earned.length} of ${ACHIEVEMENTS.filter(a => a.group !== "shame").length}`;
+      $("ach-count").textContent = `${earned.length}/${ACHIEVEMENTS.filter(a => a.group !== "shame").length}`;
       // newest unlocks first
       earned.sort((a, b) => mine.get(b.key).date.localeCompare(mine.get(a.key).date));
       $("achievements").innerHTML = `

@@ -32,7 +32,9 @@ const ROUND_NAMES = { 1: "Final", 2: "Semifinals", 4: "Quarterfinals", 8: "Round
 
 // Single-game knockout for the top `spots` teams (any number).
 // If the bracket isn't full (e.g. 6 teams in an 8-team bracket), the top seeds get byes.
-export function buildBracket(standings, matches, spots = 4) {
+// `decide(a, b)`, if given, picks a winner for ties not played yet (used by the playoff odds
+// simulation to play out the whole bracket).
+export function buildBracket(standings, matches, spots = 4, decide = null) {
   const n = Math.min(spots, standings.length);
   const seeds = standings.slice(0, n).map(r => r.team.id);
   const playoffs = matches.filter(m => m.stage === "playoff");
@@ -50,6 +52,7 @@ export function buildBracket(standings, matches, spots = 4) {
     const oneSided = (a == null) !== (b == null);
     let winner = match ? winnerOf(match) : null;
     if (!match && bye && oneSided) winner = a ?? b;
+    if (!match && decide && a != null && b != null) winner = decide(a, b);
     return { a, b, match, winner, bye: bye && oneSided };
   };
 

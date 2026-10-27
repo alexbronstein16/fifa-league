@@ -40,6 +40,10 @@
     <p class="note">Everyone's best finish across the awards and fun stats.</p>
     <div class="supers" id="supers"></div>
 
+    <h2>Recent achievements</h2>
+    <p class="note">The latest badges unlocked, from any game. Tap a player to see all of theirs.</p>
+    <ul class="feed" id="feed"></ul>
+
     <h2 id="board-title">Leaderboard</h2>
     <div class="table-wrap" id="board-wrap">
       <table>
@@ -75,7 +79,8 @@
     import { buildBracket } from "./js/bracket.js";
     import { entriesFor, computeStats, superlatives, playerTable, bestGuests, clubTable } from "./js/stats.js";
     import { LEAGUE } from "./js/config.js";
-    import { esc, crestIcon, playerLink } from "./js/ui.js";
+    import { esc, crestIcon, playerLink, shortDate } from "./js/ui.js";
+    import { computeAchievements, BY_KEY } from "./js/achievements.js";
 
     const $ = id => document.getElementById(id);
     const signed = n => (n > 0 ? "+" : "") + n;
@@ -229,11 +234,28 @@
         </tr>`).join("");
     }
 
+    function drawFeed(ach, teams) {
+      const byId = new Map(teams.map(t => [t.id, t]));
+      const team = id => byId.get(id);
+      const items = ach.events.filter(e => team(e.id)).slice(0, 10);
+      $("feed").innerHTML = items.map(e => {
+        const a = BY_KEY.get(e.key);
+        return `
+          <li>
+            <span class="badge-icon">${a.icon}</span>
+            <div>${crestIcon(team(e.id))}${playerLink(team(e.id))} · <b>${esc(a.name)}</b>
+              <br><small>${esc(a.desc)}${e.opp && team(e.opp) ? ` · vs ${esc(team(e.opp).name)}` : ""}</small></div>
+            <small>${shortDate(e.date)}</small>
+          </li>`;
+      }).join("") || `<li class="note">Nothing unlocked yet.</li>`;
+    }
+
     try {
       const [leagueTeams, teams, matches] = await Promise.all([getTeams(), getAllTeams(), getAllMatches()]);
       const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
       data = { leagueTeams, teams, matches, ratings, history };
       render();
+      drawFeed(computeAchievements(teams, matches, history, LEAGUE), teams);
     } catch (e) {
       $("awards").textContent = `Couldn't load stats: ${e.message}`;
       console.error(e);

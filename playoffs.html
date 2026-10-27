@@ -26,10 +26,23 @@
     <h1>Playoffs</h1>
     <p class="note" id="status"></p>
     <div class="bracket" id="bracket">Loading…</div>
+
+    <section id="odds-box" hidden>
+      <h2>Playoff odds</h2>
+      <p class="note" id="odds-note"></p>
+      <div class="table-wrap">
+        <table class="odds">
+          <thead id="odds-head"></thead>
+          <tbody id="odds"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script type="module">
-    import { getTeams, getMatches } from "./js/db.js";
+    import { getTeams, getMatches, getAllTeams, getAllMatches } from "./js/db.js";
+    import { computeElo } from "./js/elo.js";
+    import { playoffOdds } from "./js/odds.js";
     import { computeStandings } from "./js/standings.js";
     import { buildBracket } from "./js/bracket.js";
     import { LEAGUE } from "./js/config.js";
@@ -85,9 +98,59 @@
         ? `🏆 Champion: <b>${esc(champ.name)}</b>`
         : started ? "Playoffs in progress."
         : `Projected bracket: top ${bracket.seeds.length} in the current standings.`;
+
+      if (!champ && matches.some(m => m.stage === "league")) {
+        $("odds-box").hidden = false;
+        $("odds").innerHTML = `<tr><td class="left">Simulating the rest of the season…</td></tr>`;
+        // let the bracket paint first: the simulation takes a moment on phones
+        setTimeout(() => drawOdds(teams, matches).catch(e => {
+          $("odds").innerHTML = `<tr><td class="left">Couldn't work out odds: ${esc(e.message)}</td></tr>`;
+          console.error(e);
+        }), 30);
+      }
     } catch (e) {
       $("bracket").textContent = `Couldn't load playoffs: ${e.message}`;
       console.error(e);
+    }
+
+    async function drawOdds(teams, matches) {
+      const [allTeams, allMatches] = await Promise.all([getAllTeams(), getAllMatches()]);
+      const { ratings } = computeElo(allTeams, allMatches, LEAGUE.elo);
+      const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
+      const odds = playoffOdds(teams, season, ratings, LEAGUE);
+      if (!odds) { $("odds-box").hidden = true; return; }
+      const team = id => teams.find(t => t.id === id);
+
+      // "Make playoffs" only matters if someone can miss out; "Bye" only if there are byes
+      const cols = [
+        ["Elo", r => Math.round(r.elo), "hide-sm"],
+        ["Pts", r => r.pts, "hide-sm"],
+        ["Proj. pts", r => r.projPts.toFixed(0), "hide-sm"],
+        odds.spots < teams.length && ["Playoffs", r => r.playoffs, "p"],
+        odds.byes > 0 && ["Bye", r => r.bye, "p"],
+        ["1st place", r => r.first, "p hide-sm"],
+        ["Final", r => r.final, "p"],
+        ["Champion", r => r.champion, "p"],
+      ].filter(Boolean);
+
+      // with games left, never claim certainty: "every simulation" isn't "guaranteed"
+      const sure = !odds.remaining;
+      const pct = p => p === 0 ? (sure ? "0%" : "<1%") : p < 0.01 ? "<1%"
+        : p > 0.99 && (p < 1 || !sure) ? ">99%" : `${Math.round(p * 100)}%`;
+      // shade each cell by its probability
+      const cell = (p, cls) => `<td class="${cls.replace("p", "").trim()}" style="background:rgba(34,197,94,${(p * 0.45).toFixed(2)})">${pct(p)}</td>`;
+
+      $("odds-head").innerHTML = `<tr><th class="left">Team</th>${cols.map(([h, , cls]) =>
+        `<th class="${cls.replace("p", "").trim()}">${h}</th>`).join("")}</tr>`;
+      $("odds").innerHTML = odds.rows.map(r => `
+        <tr>
+          <td class="left">${badge(team(r.id))}${playerLink(team(r.id))}</td>
+          ${cols.map(([, f, cls]) => cls.startsWith("p") ? cell(f(r), cls) : `<td class="${cls}">${f(r)}</td>`).join("")}
+        </tr>`).join("");
+
+      $("odds-note").textContent = odds.remaining
+        ? `Based on ${odds.sims.toLocaleString()} simulations of the ${odds.remaining} league games left and the playoffs, using everyone's current Elo. Updates after every result.`
+        : `The league is finished. Based on ${odds.sims.toLocaleString()} simulations of the rest of the playoffs, using everyone's current Elo.`;
     }
   </script>
 </body>
