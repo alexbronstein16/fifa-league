@@ -39,6 +39,20 @@
       </table>
     </div>
     <p class="note" id="note"></p>
+
+    <section id="power-box" hidden>
+      <h2>Power rankings</h2>
+      <p class="note">Who's playing best right now: Elo plus form from the last 5 games (any type).
+        Arrows show movement since a week ago.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th></th><th class="left">Team</th><th>Elo</th><th class="hide-sm">Last 5</th><th>Score</th></tr>
+          </thead>
+          <tbody id="power"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script type="module">
@@ -71,13 +85,60 @@
             `<span class="form ${f}">${f}</span>`).join("")}</td>
         </tr>`).join("");
 
+      drawPower(teams, allMatches);
+
       const played = matches.filter(m => m.stage === "league").length;
       document.getElementById("note").textContent =
         `${played} league matches played. ${LEAGUE.playoffSpots >= table.length
           ? "Everyone makes the playoffs" : `Top ${LEAGUE.playoffSpots} make the playoffs`}.`;
     } catch (e) {
+      console.error(e);
       tbody.innerHTML = `<tr><td colspan="12">Couldn't load standings: ${esc(e.message)}</td></tr>`;
       console.error(e);
+    }
+
+    // Power score = Elo + 5 points for every form point above or below a draw-a-game pace.
+    // 5 wins in the last 5 is worth +37.5, 5 losses is -37.5.
+    function powerTable(teams, matches) {
+      const { ratings } = computeElo(teams, matches, LEAGUE.elo);
+      const rows = [];
+      for (const t of teams) {
+        const mine = matches.filter(m => !m.forfeit && (m.home_team_id === t.id || m.away_team_id === t.id));
+        if (!mine.length) continue;
+        const last5 = mine.slice(-5).map(m => {
+          const home = m.home_team_id === t.id;
+          const gf = home ? m.home_goals : m.away_goals, ga = home ? m.away_goals : m.home_goals;
+          return gf > ga ? "W" : gf < ga ? "L" : "D";
+        });
+        const pts = last5.reduce((a, r) => a + (r === "W" ? 3 : r === "D" ? 1 : 0), 0);
+        const elo = ratings.get(t.id) ?? LEAGUE.elo.start;
+        rows.push({ team: t, elo, last5, score: elo + 5 * (pts - 1.5 * last5.length) });
+      }
+      return rows.sort((a, b) => b.score - a.score);
+    }
+
+    function drawPower(teams, allMatches) {
+      const now = powerTable(teams, allMatches);
+      if (!now.length) return;
+      const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+      const before = powerTable(teams, allMatches.filter(m => m.played_at < weekAgo));
+      const prevRank = new Map(before.map((r, i) => [r.team.id, i + 1]));
+      document.getElementById("power").innerHTML = now.map((r, i) => {
+        const was = prevRank.get(r.team.id);
+        const move = was == null ? `<span class="move new">NEW</span>`
+          : was > i + 1 ? `<span class="move up">▲${was - i - 1}</span>`
+          : was < i + 1 ? `<span class="move down">▼${i + 1 - was}</span>`
+          : `<span class="move same">–</span>`;
+        return `
+          <tr>
+            <td>${i + 1}</td><td>${move}</td>
+            <td class="left">${badge(r.team)}${playerLink(r.team)}</td>
+            <td>${Math.round(r.elo)}</td>
+            <td class="hide-sm">${r.last5.map(f => `<span class="form ${f}">${f}</span>`).join("")}</td>
+            <td class="pts">${Math.round(r.score)}</td>
+          </tr>`;
+      }).join("");
+      document.getElementById("power-box").hidden = false;
     }
   </script>
 </body>

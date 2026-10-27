@@ -7,6 +7,7 @@ const PAGES = [
   ["friendlies.html", "Friendlies"],
   ["h2h.html", "H2H"],
   ["stats.html", "Stats"],
+  ["records.html", "Records"],
   ["report.html", "Report"],
 ];
 

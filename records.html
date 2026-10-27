@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Records · Curtis Champions League</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="img/logo.png">
+  <link rel="apple-touch-icon" href="img/icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#171a21">
+  <meta name="apple-mobile-web-app-title" content="Curtis League">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Curtis Champions League">
+  <meta property="og:title" content="Records · Curtis Champions League">
+  <meta property="og:description" content="Standings, fixtures, playoffs and Elo for our FIFA league.">
+  <meta property="og:url" content="https://alexbronstein16.github.io/fifa-league/records.html">
+  <meta property="og:image" content="https://alexbronstein16.github.io/fifa-league/img/icon-512.png">
+  <meta name="twitter:card" content="summary">
+</head>
+<body>
+  <nav id="nav"></nav>
+  <script src="js/nav.js"></script>
+
+  <main>
+    <h1>Records</h1>
+    <div class="filters" id="views"></div>
+    <p class="note" id="note"></p>
+
+    <h2>Single games</h2>
+    <div class="records" id="games">Loading…</div>
+
+    <h2>Streaks</h2>
+    <div class="records" id="streaks"></div>
+
+    <h2>Elo <small class="note">all games</small></h2>
+    <div class="records" id="elo"></div>
+
+    <h2>Seasons</h2>
+    <div class="records" id="seasons"></div>
+
+    <h2>Latest achievements</h2>
+    <ul class="feed" id="feed"></ul>
+  </main>
+
+  <script type="module">
+    import { getAllTeams, getAllMatches } from "./js/db.js";
+    import { computeElo } from "./js/elo.js";
+    import { computeRecords } from "./js/records.js";
+    import { computeAchievements, BY_KEY } from "./js/achievements.js";
+    import { LEAGUE } from "./js/config.js";
+    import { esc, crestIcon, playerLink, shortDate } from "./js/ui.js";
+
+    const $ = id => document.getElementById(id);
+    const VIEWS = [["comp", "League & playoffs"], ["all", "All games"]];
+    let view = new URLSearchParams(location.search).get("view") === "all" ? "all" : "comp";
+    let data = null;
+
+    function tile(r, team) {
+      const who = `${crestIcon(team(r.teamId))}${playerLink(team(r.teamId))}`;
+      const what = `<b>${esc(r.value)}</b>${r.detail ? ` ${esc(r.detail)}` : ""}${r.other ? ` ${playerLink(team(r.other))}` : ""}`;
+      let when = "";
+      if (r.runnerUp) {
+        when = `Next best: ${playerLink(team(r.runnerUp.teamId))} · ${esc(r.runnerUp.value)} (Season ${r.runnerUp.season})`;
+      } else if (r.date) {
+        when = r.ongoing ? `<span class="up">Still going</span> · record since ${shortDate(r.since ?? r.date)}` : `Set ${shortDate(r.date)}`;
+        if (r.prev) {
+          const name = team(r.prev.teamId)?.name ?? "";
+          when += ` · broke ${playerLink(team(r.prev.teamId))}${name.endsWith("s") ? "’" : "’s"} ${esc(r.prev.value)}`;
+        }
+      }
+      return `
+        <div class="award record">
+          <span class="award-icon">${r.icon}</span>
+          <div class="award-body">
+            <small>${esc(r.label)}${r.note ? ` <span class="note-inline">(${esc(r.note)})</span>` : ""}</small>
+            <div class="award-who">${who}</div>
+            <div class="award-detail">${what}</div>
+            ${when ? `<div class="award-detail">${when}</div>` : ""}
+          </div>
+        </div>`;
+    }
+
+    function render() {
+      const { teams, matches, history, ach } = data;
+      const byId = new Map(teams.map(t => [t.id, t]));
+      const team = id => byId.get(id);
+      window.history.replaceState(null, "", view === "all" ? "?view=all" : location.pathname);
+      $("views").innerHTML = VIEWS.map(([k, label]) =>
+        `<button class="chip" data-view="${k}" aria-pressed="${k === view}">${label}</button>`).join("");
+      $("note").textContent = view === "all"
+        ? "Every game ever played, friendlies included. Forfeits don't count."
+        : "League and playoff games from every season. Forfeits don't count.";
+
+      const rec = computeRecords(matches, history, m => view === "all" || m.stage !== "friendly", LEAGUE);
+      const fill = (id, list) => {
+        const shown = list.filter(r => team(r.teamId));
+        $(id).innerHTML = shown.map(r => tile(r, team)).join("") || `<p class="note">No records yet.</p>`;
+      };
+      fill("games", rec.games);
+      fill("streaks", rec.streaks);
+      fill("elo", rec.elo);
+      fill("seasons", rec.seasons);
+    }
+
+    function drawFeed(ach, team) {
+      const items = ach.events.filter(e => team(e.id)).slice(0, 15);
+      $("feed").innerHTML = items.map(e => {
+        const a = BY_KEY.get(e.key);
+        return `
+          <li>
+            <span class="badge-icon">${a.icon}</span>
+            <div>${crestIcon(team(e.id))}${playerLink(team(e.id))} unlocked <b>${esc(a.name)}</b>
+              <br><small>${esc(a.desc)}${e.opp && team(e.opp) ? ` · vs ${esc(team(e.opp).name)}` : ""}</small></div>
+            <small>${shortDate(e.date)}</small>
+          </li>`;
+      }).join("") || `<li class="note">Nothing unlocked yet.</li>`;
+    }
+
+    try {
+      const [teams, matches] = await Promise.all([getAllTeams(), getAllMatches()]);
+      const { history } = computeElo(teams, matches, LEAGUE.elo);
+      const ach = computeAchievements(teams, matches, history, LEAGUE);
+      data = { teams, matches, history, ach };
+      const byId = new Map(teams.map(t => [t.id, t]));
+      render();
+      drawFeed(ach, id => byId.get(id));
+    } catch (e) {
+      $("games").textContent = `Couldn't load records: ${e.message}`;
+      console.error(e);
+    }
+
+    $("views").addEventListener("click", e => {
+      const chip = e.target.closest(".chip");
+      if (!chip || !data) return;
+      view = chip.dataset.view;
+      render();
+    });
+  </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ function fromPerspective(m, id) {
   return {
     id: m.id,
     stage: m.stage,
+    season: m.season,
     date: m.played_at,
     opp: home ? m.away_team_id : m.home_team_id,
     gf, ga,

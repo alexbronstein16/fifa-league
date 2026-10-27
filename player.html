@@ -24,6 +24,7 @@
 
   <main>
     <div id="header">Loading…</div>
+    <div id="recap-box"></div>
 
     <div class="filters" id="filters"></div>
 
@@ -34,6 +35,9 @@
 
     <h2>Elo over time <small class="note">all games</small></h2>
     <div id="elo"></div>
+
+    <h2>Achievements <small class="note" id="ach-count"></small></h2>
+    <div id="achievements"></div>
 
     <h2>Head to head</h2>
     <div class="table-wrap">
@@ -64,6 +68,9 @@
     import { getAllTeams, getAllMatches } from "./js/db.js";
     import { computeElo } from "./js/elo.js";
     import { playerGames, summarize, headToHead, clubStats } from "./js/player.js";
+    import { computeAchievements, ACHIEVEMENTS, GROUP_NAMES } from "./js/achievements.js";
+    import { computeStandings } from "./js/standings.js";
+    import { recapButton } from "./js/recap.js";
     import { LEAGUE } from "./js/config.js";
     import { esc, badge, playerLink, matchRow } from "./js/ui.js";
 
@@ -72,11 +79,13 @@
     const pct = n => `${Math.round(n * 100)}%`;
     const one = n => n.toFixed(1);
     const day = iso => new Date(iso).toLocaleDateString();
+    const short = iso => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
     const STAGES = [["all", "All"], ["league", "League"], ["playoff", "Playoffs"], ["friendly", "Friendlies"]];
     const STAGE_LABEL = { league: "League", playoff: "Playoff", friendly: "Friendly" };
 
     const playerId = Number(new URLSearchParams(location.search).get("id"));
     let teams = [], allGames = [], stage = "all";
+    let halves = null;  // this season's table split in two, for "record vs top half"
     const matchById = new Map();
     const team = id => teams.find(t => t.id === id);
 
@@ -94,9 +103,22 @@
       const { ratings, history } = computeElo(teams, matches, LEAGUE.elo);
       allGames = playerGames(playerId, matches, history);
 
+      // this season's table: used for "vs top half / bottom half" and the season card
+      const leagueTeams = teams.filter(t => t.in_league);
+      const season = matches.filter(m => m.season === LEAGUE.season && m.stage !== "friendly");
+      const table = computeStandings(leagueTeams, season, LEAGUE.points);
+      if (season.some(m => m.stage === "league") && table.length >= 4) {
+        const cut = Math.ceil(table.length / 2);
+        halves = { top: new Set(table.slice(0, cut).map(r => r.team.id)),
+                   bottom: new Set(table.slice(cut).map(r => r.team.id)) };
+      }
+      const ach = computeAchievements(teams, matches, history, LEAGUE);
+
       drawHeader(me, ratings, matches);
+      recapButton($("recap-box"), { me, team, games: allGames, table, ach, season: LEAGUE.season });
       drawFilters();
       drawElo(allGames);
+      drawAchievements(ach);
       render();
     }
 
@@ -180,14 +202,25 @@
         tile("Goal diff", signed(s.gd)),
         tile("Clean sheets", s.cleanSheets, s.gp ? pct(s.cleanSheets / s.gp) : "–"),
         tile("Streak", s.streak),
-        tile("Form", s.form.map(f => `<span class="form ${f}">${f}</span>`).join("")),
-      ].join("");
+      ].join("") + `<div class="tile tile-wide"><small>Last ${Math.min(10, games.length)}</small><div class="big">${
+        games.slice(-10).map(g => `<span class="form ${g.result}">${g.result}</span>`).join("")}</div></div>`;
 
       // insights
       const vs = g => `${g.gf}–${g.ga} vs ${playerLink(team(g.opp))} <small>${day(g.date)}</small>`;
       const fav = [...h2h].filter(r => r.w > 0).sort((a, b) => b.w - a.w)[0];
       const nem = [...h2h].filter(r => r.l > 0).sort((a, b) => b.l - a.l)[0];
+      const rec = list => { const w = list.filter(g => g.result === "W").length, d = list.filter(g => g.result === "D").length;
+        return `${w}-${d}-${list.length - w - d}`; };
+      const topGames = halves ? games.filter(g => halves.top.has(g.opp)) : [];
+      const botGames = halves ? games.filter(g => halves.bottom.has(g.opp)) : [];
+      const eloPts = allGames.filter(g => g.elo != null);
+      const peak = eloPts.length && eloPts.reduce((a, b) => b.elo > a.elo ? b : a);
+      const low = eloPts.length && eloPts.reduce((a, b) => b.elo < a.elo ? b : a);
       const items = [
+        peak && peak.elo > LEAGUE.elo.start && ["Peak Elo", `${Math.round(peak.elo)} <small>${day(peak.date)}</small>`],
+        low && low.elo < LEAGUE.elo.start && ["Lowest Elo", `${Math.round(low.elo)} <small>${day(low.date)}</small>`],
+        topGames.length && ["Vs top half of the table", `${rec(topGames)} <small>${topGames.length} games</small>`],
+        botGames.length && ["Vs bottom half", `${rec(botGames)} <small>${botGames.length} games</small>`],
         s.biggestWin && ["Biggest win", vs(s.biggestWin)],
         s.worstLoss && ["Worst loss", vs(s.worstLoss)],
         ["Longest win streak", `${s.longestWin} games`],
@@ -249,13 +282,21 @@
       const W = 600, H = 180, L = 44, R = 10, T = 12, B = 12;
       const vals = pts.map(p => p.elo);
       const max = Math.max(...vals), min = Math.min(...vals);
-      const pad = Math.max(10, (max - min) * 0.15);
+      const pad = Math.max(18, (max - min) * 0.22);  // room for the peak and low labels
       const hi = max + pad, lo = min - pad;
       const step = (W - L - R) / (pts.length - 1);
       const x = i => L + i * step;
       const y = v => T + (hi - v) * (H - T - B) / (hi - lo);
       const label = v => `<text class="axis" x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`;
       const farFromStart = v => Math.abs(y(v) - y(start)) > 14;
+      const peakI = vals.indexOf(max), lowI = vals.indexOf(min);
+      // a ringed dot with a label, kept inside the chart
+      const marker = (i, word, dy) => {
+        if (i === 0) return "";
+        const anchor = x(i) > W - 90 ? "end" : x(i) < L + 60 ? "start" : "middle";
+        return `<circle class="mark" cx="${x(i)}" cy="${y(vals[i])}" r="5"/>
+          <text class="mark-label" x="${x(i)}" y="${Math.min(H - 2, Math.max(11, y(vals[i]) + dy))}" text-anchor="${anchor}">${word} ${Math.round(vals[i])} · ${short(pts[i].date)}</text>`;
+      };
 
       box.innerHTML = `
         <div class="chart-wrap">
@@ -265,6 +306,10 @@
             ${farFromStart(max) ? label(max) : ""}
             ${farFromStart(min) ? label(min) : ""}
             <polyline class="line" points="${pts.map((p, i) => `${x(i)},${y(p.elo)}`).join(" ")}"/>
+            ${pts.length <= 80 ? pts.slice(1).map((p, i) =>
+              `<circle class="gdot ${p.forfeit ? "F" : p.result}" cx="${x(i + 1)}" cy="${y(p.elo)}" r="3"/>`).join("") : ""}
+            ${marker(peakI, "Peak", -10)}
+            ${lowI !== peakI && pts[lowI].elo < start ? marker(lowI, "Low", 20) : ""}
             <circle class="hover-dot" r="5" visibility="hidden"/>
           </svg>
           <div class="tip" hidden></div>
@@ -294,6 +339,38 @@
         dot.setAttribute("visibility", "hidden");
         tip.hidden = true;
       });
+    }
+
+    // ---------- achievements (all games, not filtered) ----------
+    function drawAchievements(ach) {
+      const mine = ach.byPlayer.get(playerId) ?? new Map();
+      const of = ach.players.size;
+      const card = (a, got) => {
+        const n = ach.rarity.get(a.key) ?? 0;
+        const when = got ? `${short(got.date)}${got.opp ? ` vs ${esc(team(got.opp)?.name ?? "?")}` : ""}${
+          got.count > 1 ? ` · <b>×${got.count}</b>` : ""}` : "";
+        return `
+          <div class="badge-card${got ? "" : " locked"}${a.group === "shame" ? " shame" : ""}" title="${esc(a.desc)}">
+            <span class="badge-icon">${a.icon}</span>
+            <div class="badge-body">
+              <div>${esc(a.name)}</div>
+              <small>${esc(a.desc)}</small>
+              <small class="badge-meta">${got ? when : "Locked"} · ${n ? `${n} of ${of} ${of === 1 ? "player" : "players"}` : "nobody yet"}</small>
+            </div>
+          </div>`;
+      };
+      const earned = ACHIEVEMENTS.filter(a => mine.has(a.key) && a.group !== "shame");
+      const shame = ACHIEVEMENTS.filter(a => mine.has(a.key) && a.group === "shame");
+      const locked = ACHIEVEMENTS.filter(a => !mine.has(a.key) && a.group !== "shame");
+      $("ach-count").textContent = `${earned.length} of ${ACHIEVEMENTS.filter(a => a.group !== "shame").length}`;
+      // newest unlocks first
+      earned.sort((a, b) => mine.get(b.key).date.localeCompare(mine.get(a.key).date));
+      $("achievements").innerHTML = `
+        ${earned.length ? `<div class="badges">${earned.map(a => card(a, mine.get(a.key))).join("")}</div>`
+          : `<p class="note">No achievements yet.</p>`}
+        ${shame.length ? `<h3 class="badge-h">Shame</h3><div class="badges">${shame.map(a => card(a, mine.get(a.key))).join("")}</div>` : ""}
+        ${locked.length ? `<details class="locked-list"><summary>Still to unlock (${locked.length})</summary>
+          <div class="badges">${locked.map(a => card(a, null)).join("")}</div></details>` : ""}`;
     }
 
     $("history").addEventListener("click", e => {
